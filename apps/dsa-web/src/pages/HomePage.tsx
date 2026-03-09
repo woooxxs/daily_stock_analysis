@@ -5,6 +5,7 @@ import {
   Clock3,
   LayoutDashboard,
   Loader2,
+  PlayCircle,
   Plus,
   RefreshCcw,
   Upload,
@@ -41,6 +42,7 @@ const HomePage: React.FC = () => {
   const { load: loadSystemConfig, configVersion, maskToken } = useSystemConfig();
 
   const [isSubmittingAddStock, setIsSubmittingAddStock] = useState(false);
+  const [isSubmittingBatchAnalyze, setIsSubmittingBatchAnalyze] = useState(false);
   const [isTaskMenuOpen, setIsTaskMenuOpen] = useState(false);
   const [isAddStockModalOpen, setIsAddStockModalOpen] = useState(false);
   const [addStockCode, setAddStockCode] = useState('');
@@ -310,6 +312,75 @@ const HomePage: React.FC = () => {
     [pushToast, setLoading, setStoreError, submitAnalysisRequest],
   );
 
+  const handleRefreshRealtimePrices = useCallback(async () => {
+    if (stockPool.codes.length === 0) {
+      pushToast('info', '当前没有可刷新的自选股。');
+      return;
+    }
+
+    try {
+      await stockPool.refreshQuotes(stockPool.codes);
+      pushToast('success', '实时价格已刷新。');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '刷新实时价格失败';
+      pushToast('error', message);
+      setStoreError(message);
+    }
+  }, [pushToast, setStoreError, stockPool]);
+
+  const handleReanalyzeAllStocks = useCallback(async () => {
+    if (stockPool.codes.length === 0) {
+      pushToast('info', '当前没有可重新分析的自选股。');
+      return;
+    }
+
+    setIsSubmittingBatchAnalyze(true);
+    setStoreError(null);
+
+    try {
+      let submittedCount = 0;
+      let duplicateCount = 0;
+      let failedCount = 0;
+      const failedCodes: string[] = [];
+
+      for (const code of stockPool.codes) {
+        const result = await submitAnalysisRequest(code);
+        if (result.success) {
+          submittedCount += 1;
+          continue;
+        }
+
+        if ('duplicate' in result && result.duplicate) {
+          duplicateCount += 1;
+          continue;
+        }
+
+        failedCount += 1;
+        failedCodes.push(code);
+      }
+
+      if (failedCount > 0 && submittedCount === 0 && duplicateCount === 0) {
+        const message = `批量分析失败：${failedCodes.slice(0, 3).join('、')}${failedCodes.length > 3 ? ' 等股票提交失败' : ' 提交失败'}`;
+        pushToast('error', message);
+        setStoreError(message);
+      } else {
+        const summary = [`已提交 ${submittedCount} 只`];
+        if (duplicateCount > 0) {
+          summary.push(`跳过 ${duplicateCount} 只进行中股票`);
+        }
+        if (failedCount > 0) {
+          summary.push(`失败 ${failedCount} 只`);
+        }
+        pushToast(submittedCount > 0 ? 'success' : 'info', `全部重新分析完成：${summary.join('，')}。`);
+        if (failedCount > 0) {
+          setStoreError(`以下股票提交失败：${failedCodes.join('、')}`);
+        }
+      }
+    } finally {
+      setIsSubmittingBatchAnalyze(false);
+    }
+  }, [pushToast, setStoreError, stockPool.codes, submitAnalysisRequest]);
+
   const handleRemoveStock = useCallback(
     async (code: string) => {
       const result = await stockPool.removeStock(code);
@@ -418,10 +489,26 @@ const HomePage: React.FC = () => {
         title="自选股池"
         description="以统一的高密度卡片视图查看行情、建议、详情与快捷操作。"
         actions={
-          <Button type="button" variant="secondary" onClick={() => void stockPool.load()} disabled={stockPool.isLoading}>
-            <RefreshCcw className={`h-4 w-4 ${stockPool.isLoading ? 'animate-spin' : ''}`} />
-            刷新自选股池
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void handleRefreshRealtimePrices()}
+              disabled={stockPool.codes.length === 0 || stockPool.isRefreshingQuotes}
+            >
+              <RefreshCcw className={`h-4 w-4 ${stockPool.isRefreshingQuotes ? 'animate-spin' : ''}`} />
+              刷新实时价格
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleReanalyzeAllStocks()}
+              disabled={stockPool.codes.length === 0}
+              isLoading={isSubmittingBatchAnalyze}
+            >
+              <PlayCircle className="h-4 w-4" />
+              一键全部重新分析
+            </Button>
+          </div>
         }
       >
         {stockPool.isLoading && stockPool.items.length === 0 ? (

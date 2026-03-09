@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - 🎨 **WebUI visual refresh** — upgraded the web app to a left-sidebar workspace layout, redesigned the login screen, and rebuilt the stock selection area into a card-based watchlist panel backed by `STOCK_LIST`
 - 🧭 **Workspace navigation polish** — added a desktop top status bar, moved in-progress tasks into a header action popover, removed the divider above the theme toggle, and switched workspace feedback to right-side auto-dismiss toast notifications
 - ✨ **Cross-page UI polish** — unified Home / Chat / Backtest / Settings page headers, refined app-level cards and spacing, and rebuilt the settings area into a clearer configuration center with richer field guidance and improved LLM channel management visuals
+- 🔁 **Watchlist action refinement** — renamed the stock-pool refresh control to realtime price refresh and added a one-click reanalyze action for resubmitting the entire watchlist
 - 🧩 **Env-driven setup simplification** — reorganized AI and notification settings around the easiest `env.example` flows so users can start with the minimum required fields before touching advanced options
 - 🗂️ **Watchlist ownership clarification** — disabled `STOCK_LIST` editing in Settings and kept watchlist management in the homepage workspace only
 - 🤖 **Minimal AI model workflow** — reduced the AI settings page to real configured models only, with an add-model entry, per-model config editing, and a frontend validation-based `检测模型` action before saving
