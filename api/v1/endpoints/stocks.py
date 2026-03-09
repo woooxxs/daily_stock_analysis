@@ -114,7 +114,7 @@ def extract_from_image(
     response_model=StockQuote,
     responses={
         200: {"description": "行情数据"},
-        404: {"description": "股票不存在", "model": ErrorResponse},
+        503: {"description": "行情服务暂不可用", "model": ErrorResponse},
         500: {"description": "服务器错误", "model": ErrorResponse},
     },
     summary="获取股票实时行情",
@@ -133,7 +133,7 @@ def get_stock_quote(stock_code: str) -> StockQuote:
         StockQuote: 实时行情数据
         
     Raises:
-        HTTPException: 404 - 股票不存在
+        HTTPException: 503 - 行情服务暂不可用
     """
     try:
         service = StockService()
@@ -143,10 +143,10 @@ def get_stock_quote(stock_code: str) -> StockQuote:
         
         if result is None:
             raise HTTPException(
-                status_code=404,
+                status_code=503,
                 detail={
-                    "error": "not_found",
-                    "message": f"未找到股票 {stock_code} 的行情数据"
+                    "error": "quote_unavailable",
+                    "message": f"股票 {stock_code} 的实时行情暂时不可用，请稍后重试"
                 }
             )
         

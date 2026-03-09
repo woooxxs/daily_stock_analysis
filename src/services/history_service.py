@@ -12,11 +12,22 @@
 import json
 import logging
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from typing import Optional, Dict, Any, List
 
 from src.storage import DatabaseManager
 
 logger = logging.getLogger(__name__)
+
+SHANGHAI_TZ = ZoneInfo('Asia/Shanghai')
+
+
+def serialize_shanghai_datetime(value: Optional[datetime]) -> Optional[str]:
+    if value is None:
+        return None
+
+    localized = value.replace(tzinfo=SHANGHAI_TZ) if value.tzinfo is None else value.astimezone(SHANGHAI_TZ)
+    return localized.isoformat(timespec='minutes')
 
 
 class HistoryService:
@@ -96,7 +107,7 @@ class HistoryService:
                     "report_type": record.report_type,
                     "sentiment_score": record.sentiment_score,
                     "operation_advice": record.operation_advice,
-                    "created_at": record.created_at.isoformat() if record.created_at else None,
+                    "created_at": serialize_shanghai_datetime(record.created_at),
                 })
             
             return {
@@ -216,7 +227,7 @@ class HistoryService:
             "stock_code": record.code,
             "stock_name": record.name,
             "report_type": record.report_type,
-            "created_at": record.created_at.isoformat() if record.created_at else None,
+            "created_at": serialize_shanghai_datetime(record.created_at),
             "analysis_summary": record.analysis_summary,
             "operation_advice": record.operation_advice,
             "trend_prediction": record.trend_prediction,
