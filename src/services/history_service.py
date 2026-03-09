@@ -107,6 +107,7 @@ class HistoryService:
                     "report_type": record.report_type,
                     "sentiment_score": record.sentiment_score,
                     "operation_advice": record.operation_advice,
+                    "trend_prediction": record.trend_prediction,
                     "created_at": serialize_shanghai_datetime(record.created_at),
                 })
             

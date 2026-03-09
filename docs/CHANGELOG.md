@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- 🏷️ **Watchlist signal tags** — stock cards now surface trend prediction and operation advice as compact tags, and the history summary payload includes `trend_prediction` for homepage rendering
 - 🎨 **WebUI visual refresh** — upgraded the web app to a left-sidebar workspace layout, redesigned the login screen, and rebuilt the stock selection area into a card-based watchlist panel backed by `STOCK_LIST`
 - 🧭 **Workspace navigation polish** — added a desktop top status bar, moved in-progress tasks into a header action popover, removed the divider above the theme toggle, and switched workspace feedback to right-side auto-dismiss toast notifications
 - ✨ **Cross-page UI polish** — unified Home / Chat / Backtest / Settings page headers, refined app-level cards and spacing, and rebuilt the settings area into a clearer configuration center with richer field guidance and improved LLM channel management visuals

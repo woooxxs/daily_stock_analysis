@@ -29,6 +29,7 @@ class HistoryItem(BaseModel):
         le=100
     )
     operation_advice: Optional[str] = Field(None, description="操作建议")
+    trend_prediction: Optional[str] = Field(None, description="趋势预测")
     created_at: Optional[str] = Field(None, description="创建时间")
     
     class Config:
@@ -41,6 +42,7 @@ class HistoryItem(BaseModel):
                 "report_type": "detailed",
                 "sentiment_score": 75,
                 "operation_advice": "持有",
+                "trend_prediction": "看多",
                 "created_at": "2024-01-01T12:00:00"
             }
         }

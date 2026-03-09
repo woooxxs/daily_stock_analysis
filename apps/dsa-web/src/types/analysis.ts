@@ -130,6 +130,7 @@ export interface HistoryItem {
   reportType?: string;
   sentimentScore?: number;
   operationAdvice?: string;
+  trendPrediction?: string;
   createdAt: string;
 }
 

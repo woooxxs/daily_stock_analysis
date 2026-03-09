@@ -1,8 +1,8 @@
 import type React from 'react';
-import { Activity, Bot, Clock3, Eye, PlayCircle, Sparkles, Trash2 } from 'lucide-react';
+import { Bot, Clock3, Eye, PlayCircle, Trash2 } from 'lucide-react';
 import { getSentimentColor } from '../../types/analysis';
 import { formatDateTime } from '../../utils/format';
-import { Button } from '../common';
+import { Badge, Button } from '../common';
 
 type StockPoolCardProps = {
   code: string;
@@ -107,21 +107,13 @@ const StockPoolCard: React.FC<StockPoolCardProps> = ({
           </div>
         </div>
 
-        <div className="grid gap-3 rounded-2xl border border-border bg-background/60 p-4 sm:grid-cols-2">
-          <div>
-            <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              <Activity className="h-3.5 w-3.5 text-primary" />
-              趋势判断
-            </div>
-            <p className="text-sm font-medium leading-6 text-foreground">{trendPrediction || '等待分析'}</p>
-          </div>
-          <div>
-            <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              操作建议
-            </div>
-            <p className="text-sm leading-6 text-foreground">{operationAdvice || '暂无交易建议'}</p>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {trendPrediction ? (
+            <Badge variant="info">{trendPrediction}</Badge>
+          ) : (
+            <Badge variant="default">等待分析</Badge>
+          )}
+          {operationAdvice ? <Badge variant="warning">{operationAdvice}</Badge> : null}
         </div>
 
         {quoteError ? (
