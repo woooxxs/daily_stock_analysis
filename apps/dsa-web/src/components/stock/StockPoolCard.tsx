@@ -1,8 +1,28 @@
 import type React from 'react';
-import { Bot, Clock3, Eye, PlayCircle, Trash2 } from 'lucide-react';
+import { Bot, Clock3, Eye, Minus, PlayCircle, TrendingDown, TrendingUp, Trash2 } from 'lucide-react';
 import { getSentimentColor } from '../../types/analysis';
 import { formatDateTime } from '../../utils/format';
 import { Badge, Button } from '../common';
+
+function getTrendIcon(value?: string): React.ReactNode {
+  if (!value) {
+    return <Minus className="h-3.5 w-3.5" />;
+  }
+
+  if (value.includes('强烈看空') || value.includes('看空') || value.includes('空头')) {
+    return <TrendingDown className="h-3.5 w-3.5" />;
+  }
+
+  if (value.includes('震荡') || value.includes('中性') || value.includes('观望')) {
+    return <Minus className="h-3.5 w-3.5" />;
+  }
+
+  if (value.includes('强烈看多') || value.includes('看多') || value.includes('多头')) {
+    return <TrendingUp className="h-3.5 w-3.5" />;
+  }
+
+  return <TrendingUp className="h-3.5 w-3.5" />;
+}
 
 function getTrendBadgeClass(value?: string): string {
   if (!value) return 'border-border bg-background text-muted-foreground';
@@ -146,10 +166,14 @@ const StockPoolCard: React.FC<StockPoolCardProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           {trendPrediction ? (
             <Badge variant="default" className={getTrendBadgeClass(trendPrediction)}>
+              {getTrendIcon(trendPrediction)}
               趋势 · {trendPrediction}
             </Badge>
           ) : (
-            <Badge variant="default">等待分析</Badge>
+            <Badge variant="default">
+              <Minus className="h-3.5 w-3.5" />
+              等待分析
+            </Badge>
           )}
           {operationAdvice ? (
             <Badge variant="default" className={getAdviceBadgeClass(operationAdvice)}>
