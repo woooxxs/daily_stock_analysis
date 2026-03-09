@@ -4,6 +4,42 @@ import { getSentimentColor } from '../../types/analysis';
 import { formatDateTime } from '../../utils/format';
 import { Badge, Button } from '../common';
 
+function getTrendBadgeClass(value?: string): string {
+  if (!value) return 'border-border bg-background text-muted-foreground';
+
+  if (value.includes('强烈看空') || value.includes('看空') || value.includes('空头')) {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300';
+  }
+
+  if (value.includes('震荡') || value.includes('中性') || value.includes('观望')) {
+    return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300';
+  }
+
+  if (value.includes('强烈看多') || value.includes('看多') || value.includes('多头')) {
+    return 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300';
+  }
+
+  return 'border-primary/20 bg-primary/10 text-primary';
+}
+
+function getAdviceBadgeClass(value?: string): string {
+  if (!value) return 'border-border bg-background text-muted-foreground';
+
+  if (value.includes('卖出') || value.includes('减仓') || value.includes('止损') || value.includes('离场') || value.includes('回避')) {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300';
+  }
+
+  if (value.includes('观望') || value.includes('持有') || value.includes('等待') || value.includes('中性')) {
+    return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300';
+  }
+
+  if (value.includes('买入') || value.includes('加仓') || value.includes('低吸') || value.includes('介入')) {
+    return 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300';
+  }
+
+  return 'border-primary/20 bg-primary/10 text-primary';
+}
+
 type StockPoolCardProps = {
   code: string;
   stockName?: string;
@@ -109,11 +145,17 @@ const StockPoolCard: React.FC<StockPoolCardProps> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           {trendPrediction ? (
-            <Badge variant="info">{trendPrediction}</Badge>
+            <Badge variant="default" className={getTrendBadgeClass(trendPrediction)}>
+              趋势 · {trendPrediction}
+            </Badge>
           ) : (
             <Badge variant="default">等待分析</Badge>
           )}
-          {operationAdvice ? <Badge variant="warning">{operationAdvice}</Badge> : null}
+          {operationAdvice ? (
+            <Badge variant="default" className={getAdviceBadgeClass(operationAdvice)}>
+              建议 · {operationAdvice}
+            </Badge>
+          ) : null}
         </div>
 
         {quoteError ? (
