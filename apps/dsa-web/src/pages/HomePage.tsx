@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   ChevronRight,
   Clock3,
   LayoutDashboard,
@@ -44,6 +45,7 @@ const HomePage: React.FC = () => {
   const [isSubmittingAddStock, setIsSubmittingAddStock] = useState(false);
   const [isSubmittingBatchAnalyze, setIsSubmittingBatchAnalyze] = useState(false);
   const [isTaskMenuOpen, setIsTaskMenuOpen] = useState(false);
+  const [isBatchAnalyzeConfirmOpen, setIsBatchAnalyzeConfirmOpen] = useState(false);
   const [isAddStockModalOpen, setIsAddStockModalOpen] = useState(false);
   const [addStockCode, setAddStockCode] = useState('');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -56,6 +58,7 @@ const HomePage: React.FC = () => {
   );
 
   const taskMenuRef = useRef<HTMLDivElement | null>(null);
+  const batchAnalyzeConfirmRef = useRef<HTMLDivElement | null>(null);
   const addStockModalRef = useRef<HTMLDivElement | null>(null);
   const toastTimersRef = useRef<Record<number, number>>({});
 
@@ -139,6 +142,34 @@ const HomePage: React.FC = () => {
       document.body.style.overflow = '';
     };
   }, [isAddStockModalOpen]);
+
+  useEffect(() => {
+    if (!isBatchAnalyzeConfirmOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (batchAnalyzeConfirmRef.current && !batchAnalyzeConfirmRef.current.contains(event.target as Node)) {
+        setIsBatchAnalyzeConfirmOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsBatchAnalyzeConfirmOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('keydown', handleEscape);
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = '';
+    };
+  }, [isBatchAnalyzeConfirmOpen]);
 
   useEffect(() => {
     void loadSystemConfig();
@@ -381,6 +412,11 @@ const HomePage: React.FC = () => {
     }
   }, [pushToast, setStoreError, stockPool.codes, submitAnalysisRequest]);
 
+  const handleConfirmReanalyzeAllStocks = useCallback(async () => {
+    setIsBatchAnalyzeConfirmOpen(false);
+    await handleReanalyzeAllStocks();
+  }, [handleReanalyzeAllStocks]);
+
   const handleRemoveStock = useCallback(
     async (code: string) => {
       const result = await stockPool.removeStock(code);
@@ -501,7 +537,7 @@ const HomePage: React.FC = () => {
             </Button>
             <Button
               type="button"
-              onClick={() => void handleReanalyzeAllStocks()}
+              onClick={() => setIsBatchAnalyzeConfirmOpen(true)}
               disabled={stockPool.codes.length === 0}
               isLoading={isSubmittingBatchAnalyze}
             >
@@ -534,6 +570,41 @@ const HomePage: React.FC = () => {
           <EmptyState title="当前还没有可展示的股票" description="你可以先从顶部“添加选股”入口手动输入股票代码，或通过图片识别合并到自选股池。" />
         )}
       </SectionCard>
+
+      {isBatchAnalyzeConfirmOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
+          <div
+            ref={batchAnalyzeConfirmRef}
+            className="w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">确认重新分析全部自选股</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  这会按当前自选股列表重新发起详细分析任务。已经在进行中的股票会自动跳过，不会重复创建任务。
+                </p>
+                <p className="mt-3 text-sm font-medium text-foreground">当前自选股：{stockPool.codes.length} 只</p>
+              </div>
+            </div>
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setIsBatchAnalyzeConfirmOpen(false)}
+                disabled={isSubmittingBatchAnalyze}
+              >
+                取消
+              </Button>
+              <Button type="button" onClick={() => void handleConfirmReanalyzeAllStocks()} disabled={isSubmittingBatchAnalyze}>
+                确认重新分析
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isAddStockModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
