@@ -12,6 +12,7 @@ interface ImageStockExtractorProps {
   maskToken: string;
   onMerged: () => void;
   disabled?: boolean;
+  embedded?: boolean;
 }
 
 export const ImageStockExtractor: React.FC<ImageStockExtractorProps> = ({
@@ -20,6 +21,7 @@ export const ImageStockExtractor: React.FC<ImageStockExtractorProps> = ({
   maskToken,
   onMerged,
   disabled,
+  embedded = false,
 }) => {
   const [codes, setCodes] = useState<string[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -36,7 +38,7 @@ export const ImageStockExtractor: React.FC<ImageStockExtractorProps> = ({
 
   const handleFile = useCallback(
     async (file: File) => {
-      const ext = '.' + (file.name.split('.').pop() ?? '').toLowerCase();
+      const ext = `.${file.name.split('.').pop() ?? ''}`.toLowerCase();
       if (!ALLOWED_EXT.includes(ext)) {
         setError('仅支持 JPG、PNG、WebP、GIF 格式');
         return;
@@ -133,19 +135,14 @@ export const ImageStockExtractor: React.FC<ImageStockExtractorProps> = ({
     }
   }, [codes, configVersion, maskToken, onMerged, parseCurrentList]);
 
-  return (
-    <div className="rounded-xl border border-white/8 bg-elevated/40 p-4">
-      <p className="mb-2 text-sm font-medium text-white">从图片添加</p>
-      <p className="mb-3 text-xs text-muted">
-        上传自选股截图，自动识别股票代码。需配置 Gemini、Anthropic 或 OpenAI API Key 方可使用。建议人工核对后再合并。
-      </p>
-
+  const content = (
+    <>
       <div
         onDrop={onDrop}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
-        className={`mb-3 flex min-h-[100px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition ${
-          isDragging ? 'border-accent bg-cyan/5' : 'border-white/16 hover:border-white/24'
+        className={`mb-3 flex min-h-[132px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all ${
+          isDragging ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50 hover:bg-accent/50'
         } ${disabled || isExtracting ? 'cursor-not-allowed opacity-60' : ''}`}
         onClick={() => !disabled && !isExtracting && document.getElementById('img-upload')?.click()}
       >
@@ -158,43 +155,55 @@ export const ImageStockExtractor: React.FC<ImageStockExtractorProps> = ({
           disabled={disabled || isExtracting}
         />
         {isExtracting ? (
-          <span className="text-sm text-secondary">识别中...</span>
+          <div className="flex items-center gap-2 text-sm text-primary animate-pulse">
+            <span className="h-4 w-4 rounded-full border-2 border-primary/30 border-t-primary animate-spin"></span>
+            识别中...
+          </div>
         ) : (
-          <span className="text-sm text-secondary">
-            拖拽或点击上传图片（JPG/PNG/WebP，≤5MB）。大图识别约需 30–60 秒
-          </span>
+          <div className="flex flex-col items-center gap-3 text-center">
+            {embedded ? (
+              <p className="text-sm font-medium text-foreground">点击或拖拽上传图片</p>
+            ) : (
+              <div>
+                <p className="text-sm font-medium text-foreground">点击或拖拽上传图片</p>
+                <p className="mt-1 text-xs text-muted-foreground">支持 JPG、PNG、WebP、GIF，单张不超过 5MB</p>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
       {error ? (
-        <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+        <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
           {error}
         </div>
       ) : null}
 
       {codes.length > 0 ? (
-        <div className="space-y-2">
-          <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-400">
+        <div className="space-y-3">
+          <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs font-medium text-warning">
             ⚠️ 建议人工逐条核对后再合并，识别结果可能有误
           </p>
-          <p className="text-xs text-secondary">识别结果（可删除不需要的项）：</p>
-          <div className="flex flex-wrap gap-2">
-            {codes.map((code) => (
-              <span
-                key={code}
-                className="inline-flex items-center gap-1 rounded-lg border border-white/16 bg-card/60 px-2 py-1 text-sm"
-              >
-                {code}
-                <button
-                  type="button"
-                  className="text-muted hover:text-white"
-                  onClick={() => removeCode(code)}
-                  disabled={disabled}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">识别结果（可删除不需要的项）：</p>
+            <div className="flex flex-wrap gap-2">
+              {codes.map((code) => (
+                <span
+                  key={code}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-sm font-medium text-foreground shadow-sm transition-colors hover:border-primary/30"
                 >
-                  ×
-                </button>
-              </span>
-            ))}
+                  {code}
+                  <button
+                    type="button"
+                    className="text-muted-foreground transition-colors hover:text-destructive"
+                    onClick={() => removeCode(code)}
+                    disabled={disabled}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
           </div>
           <button
             type="button"
@@ -206,6 +215,20 @@ export const ImageStockExtractor: React.FC<ImageStockExtractorProps> = ({
           </button>
         </div>
       ) : null}
+    </>
+  );
+
+  if (embedded) {
+    return <div>{content}</div>;
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card/40 p-4 transition-colors hover:bg-card/60">
+      <p className="mb-2 text-sm font-bold text-foreground">从图片添加</p>
+      <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+        上传自选股截图，自动识别股票代码。需配置 Gemini、Anthropic 或 OpenAI API Key 方可使用。建议人工核对后再合并。
+      </p>
+      {content}
     </div>
   );
 };

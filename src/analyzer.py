@@ -65,6 +65,10 @@ STOCK_NAME_MAP = {
     'LI': '理想汽车',
     'COIN': 'Coinbase',
     'MSTR': 'MicroStrategy',
+    'VOO': '标普500ETF',
+    'SPY': '标普500ETF',
+    'QQQ': '纳斯达克100ETF',
+    'DIA': '道琼斯工业平均ETF',
 
     # === 港股 (5位数字) ===
     '00700': '腾讯控股',
@@ -82,6 +86,38 @@ STOCK_NAME_MAP = {
     '00941': '中国移动',
     '00883': '中国海洋石油',
 }
+
+
+def is_meaningful_stock_name(name: Optional[str], stock_code: str) -> bool:
+    """Return whether a stock name is useful for display or caching."""
+    if not name:
+        return False
+
+    normalized_name = str(name).strip()
+    if not normalized_name:
+        return False
+
+    normalized_code = (stock_code or '').strip().upper()
+    if normalized_name.upper() == normalized_code:
+        return False
+
+    if normalized_name.startswith('股票'):
+        return False
+
+    placeholder_values = {
+        'N/A',
+        'NA',
+        'NONE',
+        'NULL',
+        '--',
+        '-',
+        'UNKNOWN',
+        'TICKER',
+    }
+    if normalized_name.upper() in placeholder_values:
+        return False
+
+    return True
 
 
 def get_stock_name_multi_source(
@@ -111,18 +147,16 @@ def get_stock_name_multi_source(
         # 优先从 stock_name 字段获取
         if context.get('stock_name'):
             name = context['stock_name']
-            if name and not name.startswith('股票'):
+            if is_meaningful_stock_name(name, stock_code):
                 return name
 
         # 其次从 realtime 数据获取
         if 'realtime' in context and context['realtime'].get('name'):
-            return context['realtime']['name']
+            realtime_name = context['realtime']['name']
+            if is_meaningful_stock_name(realtime_name, stock_code):
+                return realtime_name
 
-    # 2. 从静态映射表获取
-    if stock_code in STOCK_NAME_MAP:
-        return STOCK_NAME_MAP[stock_code]
-
-    # 3. 从数据源获取
+    # 2. 从数据源获取
     if data_manager is None:
         try:
             from data_provider.base import DataFetcherManager
@@ -133,12 +167,16 @@ def get_stock_name_multi_source(
     if data_manager:
         try:
             name = data_manager.get_stock_name(stock_code)
-            if name:
+            if is_meaningful_stock_name(name, stock_code):
                 # 更新缓存
                 STOCK_NAME_MAP[stock_code] = name
                 return name
         except Exception as e:
             logger.debug(f"从数据源获取股票名称失败: {e}")
+
+    # 3. 从静态映射表获取
+    if stock_code in STOCK_NAME_MAP:
+        return STOCK_NAME_MAP[stock_code]
 
     # 4. 返回默认名称
     return f'股票{stock_code}'
@@ -735,10 +773,11 @@ class GeminiAnalyzer:
         
         # 优先从上下文获取股票名称（由 main.py 传入）
         name = context.get('stock_name')
-        if not name or name.startswith('股票'):
+        if not is_meaningful_stock_name(name, code):
             # 备选：从 realtime 中获取
-            if 'realtime' in context and context['realtime'].get('name'):
-                name = context['realtime']['name']
+            realtime_name = context.get('realtime', {}).get('name') if context else None
+            if is_meaningful_stock_name(realtime_name, code):
+                name = realtime_name
             else:
                 # 最后从映射表获取
                 name = STOCK_NAME_MAP.get(code, f'股票{code}')

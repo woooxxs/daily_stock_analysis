@@ -9,15 +9,15 @@ import {
   PlayCircle,
   Plus,
   RefreshCcw,
-  Upload,
   X,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import type { HistoryItem, TaskInfo } from '../types/analysis';
 import { historyApi } from '../api/history';
 import { analysisApi, DuplicateTaskError } from '../api/analysis';
 import { validateStockCode } from '../utils/validation';
 import { getRecentStartDate, getTodayInShanghai } from '../utils/format';
+import { resolveDisplayStockName } from '../utils/stock';
 import { useAnalysisStore } from '../stores/analysisStore';
 import {
   AppPage,
@@ -31,14 +31,24 @@ import {
 } from '../components/common';
 import { TaskPanel } from '../components/tasks';
 import StockPoolCard from '../components/stock/StockPoolCard';
+import { StockDetailModal, type StockDetailTab } from '../components/stock/StockDetailModal';
 import { ImageStockExtractor } from '../components/settings';
 import { useStockPool, useSystemConfig, useTaskStream } from '../hooks';
 
 const historyPageSize = 100;
 
+type ActiveStockDetail = {
+  code: string;
+  stockName?: string;
+  currentPrice?: number;
+  changePercent?: number;
+  recordId?: number;
+  defaultTab: StockDetailTab;
+};
+
 const HomePage: React.FC = () => {
   const { setLoading, setError: setStoreError } = useAnalysisStore();
-  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const stockPool = useStockPool();
   const { load: loadSystemConfig, configVersion, maskToken } = useSystemConfig();
 
@@ -51,6 +61,7 @@ const HomePage: React.FC = () => {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [activeTasks, setActiveTasks] = useState<TaskInfo[]>([]);
+  const [activeStockDetail, setActiveStockDetail] = useState<ActiveStockDetail | null>(null);
 
   const activeTaskCount = useMemo(
     () => activeTasks.filter((task) => task.status === 'pending' || task.status === 'processing').length,
@@ -288,7 +299,7 @@ const HomePage: React.FC = () => {
 
         return {
           code: item.code,
-          stockName: liveQuote?.stockName || latestHistory?.stockName,
+          stockName: resolveDisplayStockName(item.code, liveQuote?.stockName, latestHistory?.stockName),
           currentPrice: liveQuote?.currentPrice,
           changePercent: liveQuote?.changePercent,
           latestAnalysisTime: latestHistory?.createdAt,
@@ -296,6 +307,7 @@ const HomePage: React.FC = () => {
           operationAdvice: latestHistory?.operationAdvice,
           trendPrediction: latestHistory?.trendPrediction,
           quoteError: item.quote?.error,
+          recordId: latestHistory?.id,
           statusLabel,
           statusTone,
         };
@@ -451,33 +463,52 @@ const HomePage: React.FC = () => {
   }, [addStockCode, pushToast, stockPool]);
 
   const handleOpenStockDetail = useCallback(
-    (code: string, stockName?: string) => {
-      const search = new URLSearchParams();
-      if (stockName) {
-        search.set('name', stockName);
-      }
-      const query = search.toString();
-      navigate(`/stocks/${code}${query ? `?${query}` : ''}`);
+    (code: string, defaultTab: StockDetailTab = 'history') => {
+      const card = stockCards.find((stock) => stock.code === code);
+      const latestHistory = latestHistoryByCode.get(code);
+
+      setActiveStockDetail({
+        code,
+        stockName: resolveDisplayStockName(code, card?.stockName, latestHistory?.stockName),
+        currentPrice: card?.currentPrice,
+        changePercent: card?.changePercent,
+        recordId: latestHistory?.id,
+        defaultTab,
+      });
     },
-    [navigate],
+    [latestHistoryByCode, stockCards],
   );
 
   const handleAskStock = useCallback(
     (code: string) => {
-      const latestHistory = latestHistoryByCode.get(code);
-      const search = new URLSearchParams({ stock: code });
-
-      if (latestHistory?.stockName) {
-        search.set('name', latestHistory.stockName);
-      }
-      if (latestHistory?.id) {
-        search.set('recordId', String(latestHistory.id));
-      }
-
-      navigate(`/chat?${search.toString()}`);
+      handleOpenStockDetail(code, 'ask');
     },
-    [latestHistoryByCode, navigate],
+    [handleOpenStockDetail],
   );
+
+  useEffect(() => {
+    const rawStockCode = searchParams.get('stock');
+    if (!rawStockCode) {
+      return;
+    }
+
+    const code = rawStockCode.trim().toUpperCase();
+    const latestHistory = latestHistoryByCode.get(code);
+    const card = stockCards.find((stock) => stock.code === code);
+    const tab = searchParams.get('tab') === 'ask' ? 'ask' : 'history';
+    const rawRecordId = searchParams.get('recordId');
+    const recordId = rawRecordId ? Number(rawRecordId) : latestHistory?.id;
+
+    setActiveStockDetail({
+      code,
+      stockName: resolveDisplayStockName(code, searchParams.get('name'), card?.stockName, latestHistory?.stockName),
+      currentPrice: card?.currentPrice,
+      changePercent: card?.changePercent,
+      recordId: Number.isFinite(recordId) ? recordId : undefined,
+      defaultTab: tab,
+    });
+    setSearchParams({}, { replace: true });
+  }, [latestHistoryByCode, searchParams, setSearchParams, stockCards]);
 
   return (
     <AppPage className="space-y-6">
@@ -485,7 +516,7 @@ const HomePage: React.FC = () => {
         eyebrow="Workspace"
         icon={<LayoutDashboard className="h-4 w-4" />}
         title="选股工作台"
-        description="统一查看自选股、进行中的任务和最近分析记录。添加选股已收口到顶部入口。"
+        description="统一查看自选股的实时行情、趋势判断、操作建议与历史复盘，并支持单股追问。"
         actions={(
           <>
             <div ref={taskMenuRef} className="relative">
@@ -523,7 +554,7 @@ const HomePage: React.FC = () => {
       <SectionCard
         eyebrow="Watchlist"
         title="自选股池"
-        description="以统一的高密度卡片视图查看行情、建议、详情与快捷操作。"
+        description="聚合查看自选股的实时行情、趋势判断、操作建议与历史复盘，并支持单股追问。"
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <Button
@@ -548,26 +579,26 @@ const HomePage: React.FC = () => {
         }
       >
         {stockPool.isLoading && stockPool.items.length === 0 ? (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
             {[1, 2, 3, 4].map((index) => (
               <div key={index} className="h-48 animate-pulse rounded-2xl border border-border bg-muted/30" />
             ))}
           </div>
         ) : stockCards.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
             {stockCards.map((stock) => (
               <StockPoolCard
                 key={stock.code}
                 {...stock}
                 onAnalyze={(code) => void handleQuickAnalyze(code)}
                 onRemove={(code) => void handleRemoveStock(code)}
-                onViewReport={(code) => handleOpenStockDetail(code, stock.stockName)}
+                onViewReport={(code) => handleOpenStockDetail(code, 'history')}
                 onAsk={handleAskStock}
               />
             ))}
           </div>
         ) : (
-          <EmptyState title="当前还没有可展示的股票" description="你可以先从顶部“添加选股”入口手动输入股票代码，或通过图片识别合并到自选股池。" />
+          <EmptyState title="当前还没有可展示的股票" description="先把关注的股票加入自选股池，后续这里会持续聚合行情、分析建议与复盘记录。" />
         )}
       </SectionCard>
 
@@ -653,9 +684,6 @@ const HomePage: React.FC = () => {
                 description="上传自选股截图，自动识别股票代码。需配置 Gemini、Anthropic 或 OpenAI API Key 方可使用。建议人工核对后再合并。"
               >
                 <div className="space-y-4">
-                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Upload className="h-4 w-4" />
-                  </div>
                   <p className="text-sm leading-6 text-muted-foreground">
                     拖拽或点击上传图片（JPG/PNG/WebP，≤5MB）。大图识别约需 30–60 秒。
                   </p>
@@ -677,6 +705,18 @@ const HomePage: React.FC = () => {
           </div>
         </div>
       ) : null}
+
+      <StockDetailModal
+        key={activeStockDetail ? `${activeStockDetail.code}-${activeStockDetail.defaultTab}-${activeStockDetail.recordId || 'none'}` : 'stock-detail-closed'}
+        isOpen={Boolean(activeStockDetail)}
+        onClose={() => setActiveStockDetail(null)}
+        stockCode={activeStockDetail?.code || ''}
+        stockName={activeStockDetail?.stockName}
+        currentPrice={activeStockDetail?.currentPrice}
+        changePercent={activeStockDetail?.changePercent}
+        recordId={activeStockDetail?.recordId}
+        defaultTab={activeStockDetail?.defaultTab || 'history'}
+      />
     </AppPage>
   );
 };

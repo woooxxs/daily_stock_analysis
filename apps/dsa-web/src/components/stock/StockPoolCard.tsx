@@ -2,44 +2,39 @@ import type React from 'react';
 import { Bot, Clock3, Eye, Minus, PlayCircle, TrendingDown, TrendingUp, Trash2 } from 'lucide-react';
 import { getSentimentColor } from '../../types/analysis';
 import { formatDateTime } from '../../utils/format';
+import { normalizeTrendCategory } from '../../utils/stock';
 import { Badge, Button } from '../common';
 
 function getTrendIcon(value?: string): React.ReactNode {
-  if (!value) {
-    return <Minus className="h-3.5 w-3.5" />;
-  }
+  const category = normalizeTrendCategory(value);
 
-  if (value.includes('强烈看空') || value.includes('看空') || value.includes('空头')) {
+  if (category === 'bearish') {
     return <TrendingDown className="h-3.5 w-3.5" />;
   }
 
-  if (value.includes('震荡') || value.includes('中性') || value.includes('观望')) {
+  if (category === 'neutral' || category === 'unknown') {
     return <Minus className="h-3.5 w-3.5" />;
-  }
-
-  if (value.includes('强烈看多') || value.includes('看多') || value.includes('多头')) {
-    return <TrendingUp className="h-3.5 w-3.5" />;
   }
 
   return <TrendingUp className="h-3.5 w-3.5" />;
 }
 
 function getTrendBadgeClass(value?: string): string {
-  if (!value) return 'border-border bg-background text-muted-foreground';
+  const category = normalizeTrendCategory(value);
 
-  if (value.includes('强烈看空') || value.includes('看空') || value.includes('空头')) {
+  if (category === 'bearish') {
     return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300';
   }
 
-  if (value.includes('震荡') || value.includes('中性') || value.includes('观望')) {
+  if (category === 'neutral') {
     return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300';
   }
 
-  if (value.includes('强烈看多') || value.includes('看多') || value.includes('多头')) {
+  if (category === 'bullish') {
     return 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300';
   }
 
-  return 'border-primary/20 bg-primary/10 text-primary';
+  return 'border-border bg-background text-muted-foreground';
 }
 
 function getAdviceBadgeClass(value?: string): string {
@@ -113,12 +108,12 @@ const StockPoolCard: React.FC<StockPoolCardProps> = ({
       : 'border-border bg-background text-muted-foreground';
 
   return (
-    <article className="rounded-2xl border border-border bg-card p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-      <div className="flex flex-col gap-4">
+    <article className="rounded-2xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+      <div className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-2">
+          <div className="min-w-0 space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="truncate text-lg font-semibold text-foreground">{stockName || code}</h3>
+              <h3 className="max-w-[180px] truncate text-base font-semibold text-foreground sm:max-w-[200px]">{stockName || code}</h3>
               <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium font-mono text-muted-foreground">
                 {code}
               </span>
@@ -147,11 +142,11 @@ const StockPoolCard: React.FC<StockPoolCardProps> = ({
           </div>
 
           <div className="text-right">
-            <div className={`text-2xl font-bold font-mono leading-tight ${priceToneClass}`}>
+            <div className={`text-xl font-bold font-mono leading-tight ${priceToneClass} sm:text-2xl`}>
               {currentPrice != null ? currentPrice.toFixed(2) : '--'}
             </div>
             {changePercent != null ? (
-              <div className="mt-2 flex justify-end">
+              <div className="mt-1.5 flex justify-end">
                 <span className={['inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold font-mono', changeBadgeClass].join(' ')}>
                   {hasPositiveMove ? '+' : ''}
                   {changePercent.toFixed(2)}%
@@ -188,7 +183,7 @@ const StockPoolCard: React.FC<StockPoolCardProps> = ({
           </p>
         ) : null}
 
-        <div className="mt-auto flex flex-col gap-3 border-t border-border pt-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="mt-auto flex flex-col gap-2 border-t border-border pt-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Clock3 size={12} />
             <span>{latestAnalysisTime ? formatDateTime(latestAnalysisTime) : '暂无历史记录'}</span>

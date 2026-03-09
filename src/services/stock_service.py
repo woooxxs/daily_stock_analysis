@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 
 from src.repositories.stock_repo import StockRepository
+from src.analyzer import STOCK_NAME_MAP, is_meaningful_stock_name
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +64,14 @@ class StockService:
             # - pre_close -> prev_close
             # - volume -> volume
             # - amount -> amount
+            stock_name = getattr(quote, "name", None)
+            normalized_code = stock_code.strip().upper()
+            if not is_meaningful_stock_name(stock_name, normalized_code):
+                stock_name = STOCK_NAME_MAP.get(normalized_code)
+
             return {
                 "stock_code": getattr(quote, "code", stock_code),
-                "stock_name": getattr(quote, "name", None),
+                "stock_name": stock_name,
                 "current_price": getattr(quote, "price", 0.0) or 0.0,
                 "change": getattr(quote, "change_amount", None),
                 "change_percent": getattr(quote, "change_pct", None),

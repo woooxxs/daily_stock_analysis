@@ -10,11 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- 🪟 **Watchlist detail modal** — homepage stock cards now open a centered detail modal with `历史记录 / 问股` tabs; AI follow-up stays scoped to the current stock instead of jumping to the generic strategy chat view
+- 🧠 **Data-source configuration expansion** — Settings now exposes a dedicated data-source category with provider priority, Vision extraction, proxy, and compatibility options grouped by task-oriented summaries
+- 🔐 **One-click password auth enablement** — password login management now uses a single action button plus a confirmation modal for setting and confirming the admin password before activation
+- 📈 **US quote Stooq fallback** — added a keyless Stooq fallback for US realtime quote requests so valid tickers like `AAPL` can still return the latest tradable price when Yahoo Finance is rate-limited
 - 🏷️ **Watchlist signal tags** — stock cards now surface trend prediction and operation advice as compact tags with direction icons, and the history summary payload includes `trend_prediction` for homepage rendering
 - 🎨 **WebUI visual refresh** — upgraded the web app to a left-sidebar workspace layout, redesigned the login screen, and rebuilt the stock selection area into a card-based watchlist panel backed by `STOCK_LIST`
 - 🧭 **Workspace navigation polish** — added a desktop top status bar, moved in-progress tasks into a header action popover, removed the divider above the theme toggle, and switched workspace feedback to right-side auto-dismiss toast notifications
-- ✨ **Cross-page UI polish** — unified Home / Chat / Backtest / Settings page headers, refined app-level cards and spacing, and rebuilt the settings area into a clearer configuration center with richer field guidance and improved LLM channel management visuals
 - 🔁 **Watchlist action refinement** — renamed the stock-pool refresh control to realtime price refresh and added a confirmation-gated one-click reanalyze action for resubmitting the entire watchlist
+- ✨ **Cross-page UI polish** — unified Home / Chat / Backtest / Settings page headers, refined app-level cards and spacing, and rebuilt the settings area into a clearer configuration center with richer field guidance and improved LLM channel management visuals
 - 🧩 **Env-driven setup simplification** — reorganized AI and notification settings around the easiest `env.example` flows so users can start with the minimum required fields before touching advanced options
 - 🗂️ **Watchlist ownership clarification** — disabled `STOCK_LIST` editing in Settings and kept watchlist management in the homepage workspace only
 - 🤖 **Minimal AI model workflow** — reduced the AI settings page to real configured models only, with an add-model entry, per-model config editing, and a frontend validation-based `检测模型` action before saving
@@ -33,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - 🔐 **Settings-managed password auth** — added a dedicated settings card to enable/disable admin password login, initialize passwords from the settings page, and confirm auth shutdown without requiring password re-entry
 
 ### Fixed
+- 🏷️ **US stock title fallback** — watchlist cards and quote responses now ignore code-only placeholder names, fall back to meaningful names, and add stable ETF mappings for tickers such as `VOO`, `SPY`, `QQQ`, and `DIA`
 - 🐛 **US realtime quote 404 misclassification** — stock quote API now reports upstream quote unavailability as service degradation instead of incorrectly returning 404 for valid US tickers like `AAPL`
 - 🕒 **Watchlist analysis time timezone fix** — stock cards now show last analysis time in Asia/Shanghai with hour and minute precision
 - 🐛 **WebUI stock quotes duplicated on refresh** — kept React StrictMode enabled, moved watchlist data into a shared stock-pool store, and deduped initial quote loading across remounts and pages

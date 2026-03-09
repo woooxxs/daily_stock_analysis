@@ -1,13 +1,27 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Bot, FolderOpen, Info, MessageSquarePlus, Trash2 } from 'lucide-react';
 import { agentApi } from '../api/agent';
 import { generateUUID } from '../utils/uuid';
-import type { StrategyInfo, ChatSessionItem } from '../api/agent';
+import type { StrategyInfo, ChatSessionItem, ChatModelInfo } from '../api/agent';
 import { historyApi } from '../api/history';
-
-const STORAGE_KEY_SESSION = 'dsa_chat_session_id';
+import { PageHeader, Select } from '../components/common';
+import {
+  DEFAULT_STOCK_CODE,
+  DEFAULT_STOCK_DESCRIPTION,
+  DEFAULT_STOCK_LABEL,
+  STORAGE_KEY_SESSION,
+  isDefaultStockCode,
+  normalizeStockCode,
+  persistSessionStockMap,
+  readSessionStockMap,
+  resolveSessionStockCodeValue,
+  type SessionStockMap,
+} from '../utils/chatSessionStock';
+import { isMeaningfulStockName, resolveDisplayStockName } from '../utils/stock';
+import { useStockPool } from '../hooks';
 
 interface Message {
   id: string;
@@ -15,7 +29,7 @@ interface Message {
   content: string;
   strategy?: string;
   strategyName?: string;
-  thinkingSteps?: ProgressStep[]; // Collapsed thinking steps shown on assistant messages
+  thinkingSteps?: ProgressStep[];
 }
 
 interface ProgressStep {
@@ -43,9 +57,18 @@ interface ChatStreamPayload {
   session_id?: string;
   skills?: string[];
   context?: FollowUpContext;
+  model?: string;
 }
 
-// Quick question examples shown on empty state
+type StockTab = {
+  code: string;
+  label: string;
+  secondaryLabel: string;
+  count: number;
+  isDefault?: boolean;
+};
+
+
 const QUICK_QUESTIONS = [
   { label: '用缠论分析茅台', strategy: 'chan_theory' },
   { label: '波浪理论看宁德时代', strategy: 'wave_theory' },
@@ -55,31 +78,157 @@ const QUICK_QUESTIONS = [
   { label: '用情绪周期分析东方财富', strategy: 'emotion_cycle' },
 ];
 
+function inferStockCodeFromText(text: string, knownCodes: string[]): string | null {
+  const normalizedText = text.toUpperCase();
+
+  for (const code of knownCodes) {
+    if (normalizedText.includes(code.toUpperCase())) {
+      return code.toUpperCase();
+    }
+  }
+
+  const aShareMatch = normalizedText.match(/\b\d{6}\b/);
+  if (aShareMatch) {
+    return aShareMatch[0];
+  }
+
+  const hkMatch = normalizedText.match(/\bHK0?\d{4,5}\b/);
+  if (hkMatch) {
+    return hkMatch[0];
+  }
+
+  const usMatch = normalizedText.match(/\b[A-Z]{2,5}\b/);
+  if (usMatch) {
+    return usMatch[0];
+  }
+
+  return null;
+}
+
 const ChatPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const stockPool = useStockPool();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [strategies, setStrategies] = useState<StrategyInfo[]>([]);
   const [selectedStrategy, setSelectedStrategy] = useState<string>('bull_trend');
+  const [availableModels, setAvailableModels] = useState<ChatModelInfo[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('');
   const [progressSteps, setProgressSteps] = useState<ProgressStep[]>([]);
-  const [showStrategyDesc, setShowStrategyDesc] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialFollowUpHandled = useRef(false);
 
-  // Session management
-  const [sessionId, setSessionId] = useState<string>(() => {
-    return localStorage.getItem(STORAGE_KEY_SESSION) || generateUUID();
-  });
-  // Keep a ref in sync for use inside streaming callback
+  const [sessionId, setSessionId] = useState<string>(() => localStorage.getItem(STORAGE_KEY_SESSION) || generateUUID());
   const sessionIdRef = useRef(sessionId);
-  useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
 
-  // Chat history sidebar
   const [sessions, setSessions] = useState<ChatSessionItem[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sessionStockMap, setSessionStockMap] = useState<SessionStockMap>(() => readSessionStockMap());
+  const [selectedStockCode, setSelectedStockCode] = useState<string>('');
+  const [isStrategyInfoOpen, setIsStrategyInfoOpen] = useState(false);
+
+  const followUpContextRef = useRef<FollowUpContext | null>(null);
+
+  const knownCodes = useMemo(() => stockPool.codes.map((code) => code.toUpperCase()), [stockPool.codes]);
+  const stockNameByCode = useMemo(
+    () =>
+      stockPool.items.reduce<Record<string, string>>((accumulator, item) => {
+        const stockName = resolveDisplayStockName(item.code, item.quote?.stockName);
+        if (isMeaningfulStockName(stockName, item.code)) {
+          accumulator[item.code] = stockName;
+        }
+        return accumulator;
+      }, {}),
+    [stockPool.items],
+  );
+
+  const updateSessionStockMap = useCallback((updater: (previous: SessionStockMap) => SessionStockMap) => {
+    setSessionStockMap((previous) => {
+      const next = updater(previous);
+      persistSessionStockMap(next);
+      return next;
+    });
+  }, []);
+
+  const resolveSessionStockCode = useCallback(
+    (session: ChatSessionItem): string => resolveSessionStockCodeValue(session, sessionStockMap, knownCodes),
+    [knownCodes, sessionStockMap],
+  );
+
+  const stockTabs = useMemo<StockTab[]>(() => {
+    const counts = new Map<string, number>();
+    sessions.forEach((session) => {
+      const code = resolveSessionStockCode(session);
+      counts.set(code, (counts.get(code) || 0) + 1);
+    });
+
+    const buildStockTab = (code: string): StockTab => {
+      if (isDefaultStockCode(code)) {
+        return {
+          code,
+          label: DEFAULT_STOCK_LABEL,
+          secondaryLabel: DEFAULT_STOCK_DESCRIPTION,
+          count: counts.get(code) || 0,
+          isDefault: true,
+        };
+      }
+
+      const stockName = stockNameByCode[code];
+      return {
+        code,
+        label: resolveDisplayStockName(code, stockName),
+        secondaryLabel: stockName ? code : '股票代码',
+        count: counts.get(code) || 0,
+      };
+    };
+
+    const poolTabs = stockPool.codes.map((code) => buildStockTab(code));
+    const extraTabs = [...counts.keys()]
+      .filter((code) => !stockPool.codes.includes(code))
+      .map((code) => buildStockTab(code));
+
+    return [...poolTabs, ...extraTabs];
+  }, [resolveSessionStockCode, sessions, stockNameByCode, stockPool.codes]);
+
+  useEffect(() => {
+    if (!selectedStockCode) {
+      const stockFromQuery = normalizeStockCode(searchParams.get('stock'));
+      if (stockFromQuery) {
+        setSelectedStockCode(stockFromQuery);
+        return;
+      }
+
+      if (stockTabs.length > 0) {
+        setSelectedStockCode(stockTabs[0].code);
+      }
+    }
+  }, [searchParams, selectedStockCode, stockTabs]);
+
+  const visibleSessions = useMemo(
+    () => sessions.filter((session) => resolveSessionStockCode(session) === selectedStockCode),
+    [resolveSessionStockCode, selectedStockCode, sessions],
+  );
+
+  const selectedStrategyInfo = useMemo(
+    () => strategies.find((strategy) => strategy.id === selectedStrategy) || null,
+    [selectedStrategy, strategies],
+  );
+
+  const selectedModelInfo = useMemo(
+    () => availableModels.find((model) => model.value === selectedModel) || null,
+    [availableModels, selectedModel],
+  );
+
+  const selectedStockTab = useMemo(
+    () => stockTabs.find((tab) => tab.code === selectedStockCode) || null,
+    [selectedStockCode, stockTabs],
+  );
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -90,63 +239,121 @@ const ChatPage: React.FC = () => {
   }, [messages, progressSteps]);
 
   useEffect(() => {
-    agentApi.getStrategies().then((res) => {
-      setStrategies(res.strategies);
-      const defaultId = res.strategies.find((s) => s.id === 'bull_trend')?.id || res.strategies[0]?.id || '';
-      setSelectedStrategy(defaultId);
-    }).catch(() => {});
+    agentApi
+      .getStrategies()
+      .then((res) => {
+        setStrategies(res.strategies);
+        const defaultId = res.strategies.find((strategy) => strategy.id === 'bull_trend')?.id || res.strategies[0]?.id || '';
+        setSelectedStrategy(defaultId);
+      })
+      .catch(() => {});
   }, []);
 
-  // Load sessions list
+  useEffect(() => {
+    agentApi
+      .getModels()
+      .then((res) => {
+        setAvailableModels(res.models);
+        setSelectedModel((previous) => {
+          if (previous && res.models.some((model) => model.value === previous)) {
+            return previous;
+          }
+          return res.current_model || res.models[0]?.value || '';
+        });
+      })
+      .catch(() => {});
+  }, []);
+
   const loadSessions = useCallback(() => {
     setSessionsLoading(true);
-    agentApi.getChatSessions().then(setSessions).catch(() => {}).finally(() => setSessionsLoading(false));
-  }, []);
+    agentApi
+      .getChatSessions()
+      .then((items) => {
+        setSessions(items);
+        updateSessionStockMap((previous) => {
+          const next = { ...previous };
+          items.forEach((session) => {
+            next[session.session_id] = resolveSessionStockCodeValue(session, next, knownCodes);
+          });
+          return next;
+        });
+      })
+      .catch(() => {})
+      .finally(() => setSessionsLoading(false));
+  }, [knownCodes, updateSessionStockMap]);
 
-  // Load sessions list + restore messages on mount (with stale session detection)
   const sessionRestoredRef = useRef(false);
   useEffect(() => {
     if (sessionRestoredRef.current) return;
     sessionRestoredRef.current = true;
     const savedId = localStorage.getItem(STORAGE_KEY_SESSION);
     setSessionsLoading(true);
-    agentApi.getChatSessions().then((sessionList) => {
-      setSessions(sessionList);
-      if (savedId) {
-        const sessionExists = sessionList.some((s) => s.session_id === savedId);
-        if (sessionExists) {
-          return agentApi.getChatSessionMessages(savedId).then((msgs) => {
-            if (msgs.length > 0) {
-              setMessages(msgs.map((m) => ({ id: m.id, role: m.role, content: m.content })));
-            }
-          });
-        }
-        // Session was deleted externally — reset to a new session
-        const newId = generateUUID();
-        setSessionId(newId);
-        sessionIdRef.current = newId;
-      }
-    }).catch(() => {}).finally(() => setSessionsLoading(false));
-  }, []);
+    agentApi
+      .getChatSessions()
+      .then((sessionList) => {
+        setSessions(sessionList);
 
-  // Persist session_id to localStorage
+        let restoredStockCode = '';
+        updateSessionStockMap((previous) => {
+          const next = { ...previous };
+          sessionList.forEach((session) => {
+            next[session.session_id] = resolveSessionStockCodeValue(session, next, knownCodes);
+          });
+          if (savedId) {
+            const savedSession = sessionList.find((session) => session.session_id === savedId);
+            if (savedSession) {
+              restoredStockCode = next[savedSession.session_id];
+            }
+          }
+          return next;
+        });
+
+        if (savedId) {
+          const sessionExists = sessionList.some((session) => session.session_id === savedId);
+          if (sessionExists) {
+            if (restoredStockCode) {
+              setSelectedStockCode(restoredStockCode);
+            }
+            return agentApi.getChatSessionMessages(savedId).then((msgs) => {
+              if (msgs.length > 0) {
+                setMessages(msgs.map((message) => ({ id: message.id, role: message.role, content: message.content })));
+              }
+            });
+          }
+          const newId = generateUUID();
+          setSessionId(newId);
+          sessionIdRef.current = newId;
+        }
+      })
+      .catch(() => {})
+      .finally(() => setSessionsLoading(false));
+  }, [knownCodes, updateSessionStockMap]);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_SESSION, sessionId);
   }, [sessionId]);
 
-  // Switch to an existing session
-  const switchSession = useCallback((targetSessionId: string) => {
-    if (targetSessionId === sessionId && messages.length > 0) return;
-    setMessages([]);
-    setSessionId(targetSessionId);
-    sessionIdRef.current = targetSessionId;
-    setSidebarOpen(false);
-    agentApi.getChatSessionMessages(targetSessionId).then((msgs) => {
-      setMessages(msgs.map((m) => ({ id: m.id, role: m.role, content: m.content })));
-    }).catch(() => {});
-  }, [sessionId, messages.length]);
+  const switchSession = useCallback(
+    (targetSessionId: string) => {
+      if (targetSessionId === sessionId && messages.length > 0) return;
+      setMessages([]);
+      setSessionId(targetSessionId);
+      sessionIdRef.current = targetSessionId;
+      setMobileSidebarOpen(false);
+      const targetSession = sessions.find((session) => session.session_id === targetSessionId);
+      if (targetSession) {
+        setSelectedStockCode(resolveSessionStockCode(targetSession));
+      }
+      agentApi
+        .getChatSessionMessages(targetSessionId)
+        .then((msgs) => {
+          setMessages(msgs.map((message) => ({ id: message.id, role: message.role, content: message.content })));
+        })
+        .catch(() => {});
+    },
+    [messages.length, resolveSessionStockCode, sessionId, sessions],
+  );
 
-  // Start a new conversation
   const startNewChat = useCallback(() => {
     const newId = generateUUID();
     setSessionId(newId);
@@ -154,54 +361,61 @@ const ChatPage: React.FC = () => {
     setMessages([]);
     setProgressSteps([]);
     followUpContextRef.current = null;
-    setSidebarOpen(false);
+    setMobileSidebarOpen(false);
   }, []);
 
-  // Delete with confirmation
   const confirmDelete = useCallback(() => {
     if (!deleteConfirmId) return;
-    agentApi.deleteChatSession(deleteConfirmId).then(() => {
-      setSessions((prev) => prev.filter((s) => s.session_id !== deleteConfirmId));
-      if (deleteConfirmId === sessionId) startNewChat();
-    }).catch(() => {});
+    agentApi
+      .deleteChatSession(deleteConfirmId)
+      .then(() => {
+        setSessions((previous) => previous.filter((session) => session.session_id !== deleteConfirmId));
+        updateSessionStockMap((previous) => {
+          const next = { ...previous };
+          delete next[deleteConfirmId];
+          return next;
+        });
+        if (deleteConfirmId === sessionId) startNewChat();
+      })
+      .catch(() => {});
     setDeleteConfirmId(null);
-  }, [deleteConfirmId, sessionId, startNewChat]);
+  }, [deleteConfirmId, sessionId, startNewChat, updateSessionStockMap]);
 
-  // Handle follow-up from report page: ?stock=600519&name=贵州茅台&queryId=xxx
   useEffect(() => {
     if (initialFollowUpHandled.current) return;
-    const stock = searchParams.get('stock');
+    const stock = normalizeStockCode(searchParams.get('stock'));
     const name = searchParams.get('name');
     const recordId = searchParams.get('recordId');
     if (stock) {
       initialFollowUpHandled.current = true;
+      setSelectedStockCode(stock);
       const displayName = name ? `${name}(${stock})` : stock;
       setInput(`请深入分析 ${displayName}`);
-      // Load previous report context for data reuse
       if (recordId) {
-        historyApi.getDetail(Number(recordId)).then((report) => {
-          const ctx: FollowUpContext = { stock_code: stock, stock_name: name };
-          if (report.summary) ctx.previous_analysis_summary = report.summary;
-          if (report.strategy) ctx.previous_strategy = report.strategy;
-          if (report.meta) {
-            ctx.previous_price = report.meta.currentPrice;
-            ctx.previous_change_pct = report.meta.changePct;
-          }
-          followUpContextRef.current = ctx;
-        }).catch(() => {});
+        historyApi
+          .getDetail(Number(recordId))
+          .then((report) => {
+            const context: FollowUpContext = { stock_code: stock, stock_name: name };
+            if (report.summary) context.previous_analysis_summary = report.summary;
+            if (report.strategy) context.previous_strategy = report.strategy;
+            if (report.meta) {
+              context.previous_price = report.meta.currentPrice;
+              context.previous_change_pct = report.meta.changePct;
+            }
+            followUpContextRef.current = context;
+          })
+          .catch(() => {});
       }
-      // Clean URL params
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams]);
 
-  const followUpContextRef = useRef<FollowUpContext | null>(null);
-
   const handleSend = async (overrideMessage?: string, overrideStrategy?: string) => {
     const msgText = overrideMessage || input.trim();
     if (!msgText || loading) return;
+
     const usedStrategy = overrideStrategy || selectedStrategy;
-    const usedStrategyName = strategies.find((s) => s.id === usedStrategy)?.name || (usedStrategy ? usedStrategy : '通用');
+    const usedStrategyName = strategies.find((strategy) => strategy.id === usedStrategy)?.name || (usedStrategy ? usedStrategy : '通用');
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -209,34 +423,50 @@ const ChatPage: React.FC = () => {
       strategy: usedStrategy,
       strategyName: usedStrategyName,
     };
-    setMessages((prev) => [...prev, userMessage]);
+
+    setMessages((previous) => [...previous, userMessage]);
     setInput('');
     setLoading(true);
     setProgressSteps([]);
 
     const currentSessionId = sessionIdRef.current;
+    const activeSelectedStockCode = isDefaultStockCode(selectedStockCode) ? '' : selectedStockCode;
+    const inferredCode = activeSelectedStockCode || followUpContextRef.current?.stock_code || inferStockCodeFromText(msgText, knownCodes) || DEFAULT_STOCK_CODE;
 
-    // Optimistically add new session to sidebar if not already present
-    setSessions((prev) => {
-      if (prev.some((s) => s.session_id === currentSessionId)) return prev;
-      return [{
-        session_id: currentSessionId,
-        title: msgText.slice(0, 60),
-        message_count: 1,
-        created_at: new Date().toISOString(),
-        last_active: new Date().toISOString(),
-      }, ...prev];
+    updateSessionStockMap((previous) => ({ ...previous, [currentSessionId]: inferredCode }));
+    if (!selectedStockCode || isDefaultStockCode(selectedStockCode)) {
+      setSelectedStockCode(inferredCode);
+    }
+
+    setSessions((previous) => {
+      if (previous.some((session) => session.session_id === currentSessionId)) return previous;
+      return [
+        {
+          session_id: currentSessionId,
+          title: msgText.slice(0, 60),
+          message_count: 1,
+          created_at: new Date().toISOString(),
+          last_active: new Date().toISOString(),
+        },
+        ...previous,
+      ];
     });
 
     const payload: ChatStreamPayload = {
       message: userMessage.content,
       session_id: currentSessionId,
       skills: usedStrategy ? [usedStrategy] : undefined,
+      model: selectedModel || undefined,
     };
-    // Attach follow-up context if available (data reuse from report page)
+
     if (followUpContextRef.current) {
       payload.context = followUpContextRef.current;
-      followUpContextRef.current = null; // Use once
+      followUpContextRef.current = null;
+    } else if (activeSelectedStockCode) {
+      payload.context = {
+        stock_code: activeSelectedStockCode,
+        stock_name: stockNameByCode[activeSelectedStockCode] || null,
+      };
     }
 
     try {
@@ -255,7 +485,11 @@ const ChatPage: React.FC = () => {
         throw new Error(`❌ 服务端错误: ${detail}`);
       }
 
-      const reader = response.body!.getReader();
+      if (!response.body) {
+        throw new Error('未收到流式响应，请稍后重试。');
+      }
+
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buf = '';
       let finalContent: string | null = null;
@@ -266,147 +500,134 @@ const ChatPage: React.FC = () => {
         if (done) break;
         buf += decoder.decode(value, { stream: true });
         const lines = buf.split('\n');
-        buf = lines.pop() ?? '';
-
+        buf = lines.pop() || '';
         for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
+          const trimmedLine = line.trim();
+          if (!trimmedLine) continue;
+
+          const payloadLine = trimmedLine.startsWith('data:') ? trimmedLine.slice(5).trim() : trimmedLine;
+          if (!payloadLine) continue;
+
           try {
-            const event = JSON.parse(line.slice(6)) as ProgressStep;
-            if (event.type === 'done') {
-              const doneEvent = event as unknown as { type: string; success: boolean; content?: string; error?: string };
-              if (doneEvent.success === false) {
-                throw new Error(`❌ 分析失败: ${doneEvent.error || doneEvent.content || '大模型调用出错，请检查 API Key 配置'}`);
-              }
-              finalContent = doneEvent.content ?? '';
-            } else if (event.type === 'error') {
-              throw new Error(`❌ 分析出错: ${event.message}`);
-            } else {
-              currentProgressSteps.push(event);
-              setProgressSteps((prev) => [...prev, event]);
+            const data = JSON.parse(payloadLine) as ProgressStep & { error?: string; content?: string; message?: string };
+            if (data.type === 'tool_start' || data.type === 'tool_done' || data.type === 'generating') {
+              currentProgressSteps.push(data);
+              setProgressSteps([...currentProgressSteps]);
+            } else if (data.type === 'done') {
+              finalContent = data.content || '';
+            } else if (data.type === 'error') {
+              throw new Error(data.message || data.error || '发送失败');
             }
-          } catch (parseErr: unknown) {
-            if ((parseErr as Error).message?.startsWith('❌')) throw parseErr;
+          } catch (streamError) {
+            if (streamError instanceof Error) {
+              throw streamError;
+            }
           }
         }
       }
 
-      setMessages((prev) => [
-        ...prev,
+      const assistantMessage: Message = {
+        id: `${Date.now()}-assistant`,
+        role: 'assistant',
+        content: finalContent || '未收到分析结果，请稍后重试。',
+        strategy: usedStrategy,
+        strategyName: usedStrategyName,
+        thinkingSteps: [...currentProgressSteps],
+      };
+      setMessages((previous) => [...previous, assistantMessage]);
+      loadSessions();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '发送失败';
+      setMessages((previous) => [
+        ...previous,
         {
-          id: (Date.now() + 1).toString(),
+          id: `${Date.now()}-error`,
           role: 'assistant',
-          content: finalContent || '（无内容）',
+          content: errorMessage,
           strategy: usedStrategy,
           strategyName: usedStrategyName,
-          thinkingSteps: [...currentProgressSteps],
         },
-      ]);
-    } catch (error: unknown) {
-      const errMsg = (error as Error).message;
-      const displayMsg =
-        errMsg?.startsWith('⚠️') || errMsg?.startsWith('❌')
-          ? errMsg
-          : `抱歉，发生了错误: ${errMsg || '未知错误'}`;
-      setMessages((prev) => [
-        ...prev,
-        { id: (Date.now() + 1).toString(), role: 'assistant', content: displayMsg },
       ]);
     } finally {
       setLoading(false);
       setProgressSteps([]);
-      loadSessions(); // Refresh sidebar after new message
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      void handleSend();
     }
   };
 
-  // Handle quick question click
-  const handleQuickQuestion = (q: typeof QUICK_QUESTIONS[0]) => {
-    setSelectedStrategy(q.strategy);
-    handleSend(q.label, q.strategy);
+  const handleQuickQuestion = (question: typeof QUICK_QUESTIONS[number]) => {
+    setInput(question.label);
+    setSelectedStrategy(question.strategy);
   };
 
-  // State to track which message's thinking is expanded
   const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set());
 
-  const toggleThinking = (msgId: string) => {
-    setExpandedThinking((prev) => {
-      const next = new Set(prev);
-      if (next.has(msgId)) next.delete(msgId);
-      else next.add(msgId);
+  const toggleThinkingExpanded = (messageId: string) => {
+    setExpandedThinking((previous) => {
+      const next = new Set(previous);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
       return next;
     });
   };
 
-  // Get current stage description from a list of progress steps
   const getCurrentStage = (steps: ProgressStep[]): string => {
-    if (steps.length === 0) return '正在连接...';
-    const last = steps[steps.length - 1];
-    if (last.type === 'thinking') return last.message || 'AI 正在思考...';
-    if (last.type === 'tool_start') return `${last.display_name || last.tool}...`;
-    if (last.type === 'tool_done') return `${last.display_name || last.tool} 完成`;
-    if (last.type === 'generating') return last.message || '正在生成最终分析...';
-    return '处理中...';
+    if (steps.length === 0) return 'AI 正在思考中...';
+    const lastStep = steps[steps.length - 1];
+    if (lastStep.type === 'tool_start' || lastStep.type === 'tool_call') {
+      return lastStep.display_name || lastStep.tool || '正在调用工具';
+    }
+    if (lastStep.type === 'generating') return lastStep.message || '正在生成分析';
+    return 'AI 正在处理...';
   };
 
-  // Render a collapsible thinking block for completed messages
-  const renderThinkingBlock = (msg: Message) => {
-    if (!msg.thinkingSteps || msg.thinkingSteps.length === 0) return null;
-    const isExpanded = expandedThinking.has(msg.id);
-    const toolSteps = msg.thinkingSteps.filter((s) => s.type === 'tool_done');
-    const totalDuration = toolSteps.reduce((sum, s) => sum + (s.duration || 0), 0);
-    const summary = `${toolSteps.length} 个工具调用 · ${totalDuration.toFixed(1)}s`;
+  const renderThinkingBlock = (message: Message) => {
+    if (!message.thinkingSteps || message.thinkingSteps.length === 0) return null;
+    const isExpanded = expandedThinking.has(message.id);
 
     return (
       <button
-        onClick={() => toggleThinking(msg.id)}
-        className="flex items-center gap-2 text-xs text-muted hover:text-secondary transition-colors mb-2 w-full text-left"
+        type="button"
+        onClick={() => toggleThinkingExpanded(message.id)}
+        className="mb-3 flex items-center gap-2 rounded-xl border border-border bg-background/70 px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
       >
-        <svg
-          className={`w-3 h-3 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
-          fill="none" stroke="currentColor" viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-        <span className="flex items-center gap-1.5">
-          <span className="opacity-60">思考过程</span>
-          <span className="text-muted/50">·</span>
-          <span className="opacity-50">{summary}</span>
-        </span>
-        {isExpanded && (
-          <div className="ml-auto" onClick={(e) => e.stopPropagation()}>
-          </div>
-        )}
+        <span>{isExpanded ? '收起思考过程' : '查看思考过程'}</span>
+        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">{message.thinkingSteps.length} 步</span>
       </button>
     );
   };
 
-  // Render expanded thinking details
   const renderThinkingDetails = (steps: ProgressStep[]) => (
-    <div className="mb-3 pl-5 border-l border-white/5 space-y-0.5 animate-fade-in">
-      {steps.map((step, idx) => {
-        let icon = '⋯';
-        let text = '';
-        let colorClass = 'text-muted';
-        if (step.type === 'thinking') {
-          icon = '🤔'; text = step.message || `第 ${step.step} 步：思考`; colorClass = 'text-secondary';
-        } else if (step.type === 'tool_start') {
-          icon = '⚙️'; text = `${step.display_name || step.tool}...`; colorClass = 'text-secondary';
+    <div className="mb-3 space-y-1 rounded-2xl border border-border bg-background/70 p-3 text-xs text-muted-foreground">
+      {steps.map((step, index) => {
+        let icon = '•';
+        let text = step.message || step.display_name || step.tool || step.type;
+        let colorClass = 'text-muted-foreground';
+        if (step.type === 'tool_start' || step.type === 'tool_call') {
+          icon = '🛠';
+          colorClass = 'text-primary';
+          text = step.display_name || step.tool || '工具调用';
         } else if (step.type === 'tool_done') {
           icon = step.success ? '✅' : '❌';
-          text = `${step.display_name || step.tool} (${step.duration}s)`;
-          colorClass = step.success ? 'text-green-400' : 'text-red-400';
+          colorClass = step.success ? 'text-success' : 'text-destructive';
+          text = `${step.display_name || step.tool} (${step.duration || 0}s)`;
         } else if (step.type === 'generating') {
-          icon = '✍️'; text = step.message || '生成分析'; colorClass = 'text-cyan';
+          icon = '✍️';
+          colorClass = 'text-primary';
+          text = step.message || '生成分析';
         }
         return (
-          <div key={idx} className={`flex items-center gap-2 text-xs py-0.5 ${colorClass}`}>
-            <span className="w-4 flex-shrink-0 text-center">{icon}</span>
+          <div key={index} className={`flex items-center gap-2 py-0.5 ${colorClass}`}>
+            <span className="w-4 shrink-0 text-center">{icon}</span>
             <span className="leading-relaxed">{text}</span>
           </div>
         );
@@ -414,316 +635,355 @@ const ChatPage: React.FC = () => {
     </div>
   );
 
-  const sidebarContent = (
-    <>
-      <div className="p-3 border-b border-white/5 flex items-center justify-between">
-        <span className="text-sm font-medium text-white">历史对话</span>
-        <button
-          onClick={startNewChat}
-          className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-secondary hover:text-white"
-          title="新对话"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-        </button>
+  const stockSidebar = (
+    <div className="flex h-full flex-col overflow-hidden rounded-[28px] border border-border bg-card/70 shadow-sm backdrop-blur-sm">
+      <div className="border-b border-border px-4 py-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Stocks</p>
+        <h3 className="mt-2 text-sm font-semibold text-foreground">股票分组</h3>
       </div>
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
-        {sessionsLoading ? (
-          <div className="p-4 text-center text-xs text-muted">加载中...</div>
-        ) : sessions.length === 0 ? (
-          <div className="p-4 text-center text-xs text-muted">暂无历史对话</div>
+      <div className="flex-1 space-y-1 overflow-y-auto p-3">
+        {stockTabs.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-background/60 p-4 text-center text-xs text-muted-foreground">
+            暂无股票分组
+          </div>
         ) : (
-          sessions.map((s) => (
+          stockTabs.map((tab) => (
             <button
-              key={s.session_id}
-              onClick={() => switchSession(s.session_id)}
-              className={`w-full text-left px-3 py-2.5 border-b border-white/5 hover:bg-white/5 transition-colors group ${
-                s.session_id === sessionId ? 'bg-white/10' : ''
-              }`}
+              key={tab.code}
+              type="button"
+              onClick={() => {
+                setSelectedStockCode(tab.code);
+                setMobileSidebarOpen(false);
+              }}
+              className={[
+                'w-full rounded-2xl border px-3 py-3 text-left transition-all',
+                selectedStockCode === tab.code
+                  ? 'border-primary/25 bg-primary/10 text-primary shadow-sm'
+                  : 'border-border bg-background/70 text-foreground hover:border-primary/20 hover:bg-accent/60',
+              ].join(' ')}
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-secondary group-hover:text-white truncate flex-1">
-                  {s.title}
-                </span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(s.session_id); }}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-white/10 text-muted hover:text-red-400 transition-all flex-shrink-0"
-                  title="删除"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-              <div className="text-xs text-muted mt-0.5">
-                {s.message_count} 条消息
-                {s.last_active && ` · ${new Date(s.last_active).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-foreground">{tab.label}</p>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{tab.secondaryLabel}</p>
+                </div>
+                <span className="rounded-full bg-background/80 px-2 py-0.5 text-[11px] text-muted-foreground shadow-sm">{tab.count}</span>
               </div>
             </button>
           ))
         )}
       </div>
-    </>
+    </div>
+  );
+
+  const sessionSidebar = (
+    <div className="flex h-full flex-col overflow-hidden rounded-[28px] border border-border bg-card/70 shadow-sm backdrop-blur-sm">
+      <div className="flex items-center justify-between border-b border-border px-4 py-4">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Sessions</p>
+          <h3 className="mt-2 text-sm font-semibold text-foreground">历史对话</h3>
+        </div>
+        <button
+          type="button"
+          onClick={startNewChat}
+          className="rounded-2xl p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          title="新对话"
+        >
+          <MessageSquarePlus className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-3">
+        {sessionsLoading ? (
+          <div className="p-4 text-center text-xs text-muted-foreground">加载中...</div>
+        ) : visibleSessions.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-background/60 p-4 text-center text-xs text-muted-foreground">
+            {selectedStockTab ? `${selectedStockTab.label} 暂无历史对话` : '请选择股票分组'}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {visibleSessions.map((session) => (
+              <button
+                key={session.session_id}
+                type="button"
+                onClick={() => switchSession(session.session_id)}
+                className={[
+                  'group w-full rounded-2xl border px-3 py-3 text-left transition-all',
+                  session.session_id === sessionId
+                    ? 'border-primary/25 bg-primary/10 text-foreground shadow-sm'
+                    : 'border-border bg-background/70 hover:border-primary/20 hover:bg-accent/60',
+                ].join(' ')}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">{session.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {session.message_count} 条消息
+                      {session.last_active
+                        ? ` · ${new Date(session.last_active).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                        : ''}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setDeleteConfirmId(session.session_id);
+                    }}
+                    className="rounded-xl p-1 text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                    title="删除"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 
   return (
-    <div className="h-screen flex max-w-6xl mx-auto w-full p-4 md:p-6 gap-4">
-      {/* Desktop sidebar */}
-      <div className="hidden md:flex flex-col w-64 flex-shrink-0 glass-card overflow-hidden">
-        {sidebarContent}
-      </div>
+    <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-[1600px] gap-4 px-4 pb-8 pt-4 md:px-6 xl:grid-cols-[180px_300px_minmax(0,1fr)]">
+      <div className="hidden xl:block">{stockSidebar}</div>
+      <div className="hidden xl:block">{sessionSidebar}</div>
 
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 md:hidden" onClick={() => setSidebarOpen(false)}>
-          <div className="absolute inset-0 bg-black/60" />
-          <div
-            className="absolute left-0 top-0 bottom-0 w-72 flex flex-col glass-card overflow-hidden border-r border-white/10 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {sidebarContent}
+      {mobileSidebarOpen ? (
+        <div className="fixed inset-0 z-40 xl:hidden" onClick={() => setMobileSidebarOpen(false)}>
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+          <div className="absolute inset-y-0 left-0 flex w-[92vw] max-w-[680px] gap-3 p-3" onClick={(event) => event.stopPropagation()}>
+            <div className="w-[38%]">{stockSidebar}</div>
+            <div className="w-[62%]">{sessionSidebar}</div>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* Delete confirmation dialog */}
-      {deleteConfirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDeleteConfirmId(null)}>
-          <div className="bg-elevated border border-white/10 rounded-xl p-6 max-w-sm mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-white font-medium mb-2">删除对话</h3>
-            <p className="text-sm text-secondary mb-5">删除后，该对话将不可恢复，确认删除吗？</p>
+      {deleteConfirmId ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/50 backdrop-blur-sm" onClick={() => setDeleteConfirmId(null)}>
+          <div className="mx-4 max-w-sm rounded-xl border border-border bg-card p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <h3 className="mb-2 font-bold text-foreground">删除对话</h3>
+            <p className="mb-5 text-sm text-muted-foreground">删除后，该对话将不可恢复，确认删除吗？</p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setDeleteConfirmId(null)}
-                className="px-4 py-1.5 rounded-lg text-sm text-secondary hover:text-white hover:bg-white/5 border border-white/10 transition-colors"
+                className="rounded-lg border border-border px-4 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 取消
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-1.5 rounded-lg text-sm text-white bg-red-500/80 hover:bg-red-500 transition-colors"
+                className="rounded-lg bg-destructive px-4 py-1.5 text-sm text-destructive-foreground transition-colors hover:bg-destructive/90"
               >
                 删除
               </button>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* Main chat area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="mb-4 flex-shrink-0">
-          <h1 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-1.5 -ml-1 rounded-lg hover:bg-white/10 transition-colors text-secondary hover:text-white"
-              title="历史对话"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <svg className="w-6 h-6 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-            问股
-          </h1>
-          <p className="text-secondary text-sm">向 AI 询问个股分析，获取基于策略的交易建议与实时决策报告。</p>
-        </header>
-
-        <div className="flex-1 flex flex-col glass-card overflow-hidden min-h-0 relative z-10">
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar relative z-10">
-          {messages.length === 0 && !loading ? (
-            <div className="h-full flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 mb-4 rounded-2xl bg-white/5 flex items-center justify-center">
-                <svg className="w-8 h-8 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-white mb-2">开始问股</h3>
-              <p className="text-sm text-secondary max-w-sm mb-6">
-                输入「分析 600519」或「茅台现在能买吗」，AI 将调用实时数据工具为您生成决策报告。
-              </p>
-              {/* Quick question chips */}
-              <div className="flex flex-wrap gap-2 justify-center max-w-lg">
-                {QUICK_QUESTIONS.map((q, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleQuickQuestion(q)}
-                    className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-sm text-secondary hover:text-white hover:border-cyan/40 hover:bg-cyan/5 transition-all"
-                  >
-                    {q.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            messages.map((msg) => (
-              <div key={msg.id} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                  msg.role === 'user' ? 'bg-cyan text-black' : 'bg-white/10 text-white'
-                }`}>
-                  {msg.role === 'user' ? 'U' : 'AI'}
-                </div>
-                <div className={`max-w-[80%] rounded-2xl px-5 py-3.5 ${
-                  msg.role === 'user'
-                    ? 'bg-cyan/10 text-white border border-cyan/20 rounded-tr-sm'
-                    : 'bg-white/5 text-secondary border border-white/10 rounded-tl-sm'
-                }`}>
-                  {/* Strategy chip for assistant messages */}
-                  {msg.role === 'assistant' && msg.strategyName && (
-                    <div className="mb-2">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan/10 border border-cyan/20 text-xs text-cyan">
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        {msg.strategyName}
-                      </span>
-                    </div>
-                  )}
-                  {/* Collapsible thinking block */}
-                  {msg.role === 'assistant' && renderThinkingBlock(msg)}
-                  {msg.role === 'assistant' && expandedThinking.has(msg.id) && msg.thinkingSteps && renderThinkingDetails(msg.thinkingSteps)}
-                  {/* Markdown rendering for assistant, plain text for user */}
-                  {msg.role === 'assistant' ? (
-                    <div className="prose prose-invert prose-sm max-w-none
-                      prose-headings:text-white prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5
-                      prose-h1:text-lg prose-h2:text-base prose-h3:text-sm
-                      prose-p:leading-relaxed prose-p:mb-2 prose-p:last:mb-0
-                      prose-strong:text-white prose-strong:font-semibold
-                      prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5
-                      prose-code:text-cyan prose-code:bg-white/5 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs
-                      prose-pre:bg-black/30 prose-pre:border prose-pre:border-white/10 prose-pre:rounded-lg prose-pre:p-3
-                      prose-table:w-full prose-table:text-sm
-                      prose-th:text-white prose-th:font-medium prose-th:border-white/20 prose-th:px-3 prose-th:py-1.5 prose-th:bg-white/5
-                      prose-td:border-white/10 prose-td:px-3 prose-td:py-1.5
-                      prose-hr:border-white/10 prose-hr:my-3
-                      prose-a:text-cyan prose-a:no-underline hover:prose-a:underline
-                      prose-blockquote:border-cyan/30 prose-blockquote:text-secondary
-                    ">
-                      <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
-                    </div>
-                  ) : (
-                    msg.content.split('\n').map((line, i) => (
-                      <p key={i} className="mb-1 last:mb-0 leading-relaxed">{line || '\u00A0'}</p>
-                    ))
-                  )}
-                </div>
-              </div>
-            ))
+      <div className="flex min-w-0 flex-1 flex-col xl:col-span-1">
+        <PageHeader
+          eyebrow="Strategy Chat"
+          icon={<span className="text-sm text-primary">✦</span>}
+          title="策略问答"
+          description="按股票分组聚合对话。左侧先选股票或默认分组，再看该分组下的历史对话，右侧专注当前问答。"
+            actions={(
+            <>
+              <button type="button" onClick={() => setMobileSidebarOpen(true)} className="btn-secondary xl:hidden">
+                <FolderOpen className="mr-2 h-4 w-4" />
+                股票 / 对话
+              </button>
+              <button type="button" onClick={startNewChat} className="btn-primary">
+                新建对话
+              </button>
+            </>
           )}
+          className="mb-4 flex-shrink-0"
+        />
 
-          {/* Live progress bubble — thinking mode: only show current stage */}
-          {loading && (
-            <div className="flex gap-4">
-              <div className="w-8 h-8 rounded-full bg-white/10 text-white flex items-center justify-center flex-shrink-0 text-xs font-bold">
-                AI
-              </div>
-              <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-sm px-5 py-4 min-w-[200px] max-w-[80%]">
-                <div className="flex items-center gap-2.5 text-sm text-secondary">
-                  <div className="relative w-4 h-4 flex-shrink-0">
-                    <div className="absolute inset-0 rounded-full border-2 border-cyan/20" />
-                    <div className="absolute inset-0 rounded-full border-2 border-cyan border-t-transparent animate-spin" />
-                  </div>
-                  <span className="text-secondary">{getCurrentStage(progressSteps)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input area */}
-        <div className="p-4 md:p-6 border-t border-white/5 bg-black/20 relative z-20">
-          {/* Strategy radio selector with descriptions */}
-          {strategies.length > 0 && (
-            <div className="mb-3 flex flex-wrap gap-x-5 gap-y-2 items-start">
-              <span className="text-xs text-muted font-medium uppercase tracking-wider flex-shrink-0 mt-1">策略</span>
-              <label className="flex items-center gap-1.5 text-sm cursor-pointer group mt-0.5">
-                <input
-                  type="radio"
-                  name="strategy"
-                  value=""
-                  checked={selectedStrategy === ''}
-                  onChange={() => setSelectedStrategy('')}
-                  className="w-3.5 h-3.5 accent-cyan"
-                />
-                <span className={`transition-colors text-sm ${selectedStrategy === '' ? 'text-white font-medium' : 'text-secondary group-hover:text-white'}`}>
-                  通用分析
-                </span>
-              </label>
-              {strategies.map((s) => (
-                <label
-                  key={s.id}
-                  className="flex items-center gap-1.5 cursor-pointer group relative mt-0.5"
-                  onMouseEnter={() => setShowStrategyDesc(s.id)}
-                  onMouseLeave={() => setShowStrategyDesc(null)}
-                >
-                  <input
-                    type="radio"
-                    name="strategy"
-                    value={s.id}
-                    checked={selectedStrategy === s.id}
-                    onChange={() => setSelectedStrategy(s.id)}
-                    className="w-3.5 h-3.5 accent-cyan"
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-border bg-card/60 shadow-sm backdrop-blur-sm">
+          <div className="border-b border-border bg-background/70 px-4 py-4 md:px-6">
+            <div className="grid gap-4 md:grid-cols-2 md:items-end xl:grid-cols-[320px_280px_minmax(0,1fr)]">
+              <div className="relative">
+                <div className="flex items-end gap-2">
+                  <Select
+                    label="分析策略"
+                    value={selectedStrategy}
+                    onChange={(value) => {
+                      setSelectedStrategy(value);
+                      setIsStrategyInfoOpen(false);
+                    }}
+                    options={[
+                      { value: '', label: '通用分析' },
+                      ...strategies.map((strategy) => ({ value: strategy.id, label: strategy.name })),
+                    ]}
+                    placeholder="请选择策略"
+                    className="w-full"
                   />
-                  <span
-                    className={`transition-colors text-sm ${selectedStrategy === s.id ? 'text-white font-medium' : 'text-secondary group-hover:text-white'}`}
+                  <button
+                    type="button"
+                    onClick={() => setIsStrategyInfoOpen((previous) => !previous)}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    aria-label="查看当前策略说明"
+                    title="当前策略说明"
                   >
-                    {s.name}
-                  </span>
-                  {/* Tooltip with strategy description */}
-                  {showStrategyDesc === s.id && s.description && (
-                    <div className="absolute left-0 bottom-full mb-2 z-50 w-64 p-2.5 rounded-lg bg-elevated border border-white/10 shadow-xl text-xs text-secondary leading-relaxed pointer-events-none animate-fade-in">
-                      <p className="font-medium text-white mb-1">{s.name}</p>
-                      <p>{s.description}</p>
-                    </div>
-                  )}
-                </label>
-              ))}
-            </div>
-          )}
+                    <Info className="h-4 w-4" />
+                  </button>
+                </div>
 
-          <div className="flex gap-3 items-end">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="例如：分析 600519 / 茅台现在适合买入吗？ (Enter 发送, Shift+Enter 换行)"
-              disabled={loading}
-              rows={1}
-              className="input-terminal flex-1 min-h-[44px] max-h-[200px] py-2.5 resize-none"
-              style={{ height: 'auto' }}
-              onInput={(e) => {
-                const t = e.target as HTMLTextAreaElement;
-                t.style.height = 'auto';
-                t.style.height = `${Math.min(t.scrollHeight, 200)}px`;
-              }}
-            />
-            <button
-              onClick={() => handleSend()}
-              disabled={!input.trim() || loading}
-              className="btn-primary h-[44px] px-6 flex-shrink-0 flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              )}
-              发送
-            </button>
+                {isStrategyInfoOpen ? (
+                  <div className="absolute z-20 mt-2 w-full max-w-md rounded-2xl border border-border bg-card p-4 shadow-xl">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">当前策略说明</p>
+                    <p className="mt-2 text-sm font-medium text-foreground">{selectedStrategyInfo?.name || '通用分析'}</p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      {selectedStrategyInfo?.description || '不限定策略模板，由系统按通用分析流程回答。'}
+                    </p>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      当前模型：<span className="font-medium text-foreground">{selectedModelInfo?.label || selectedModel || '未配置'}</span>
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+              <Select
+                label="对话模型"
+                value={selectedModel}
+                onChange={setSelectedModel}
+                options={availableModels}
+                placeholder={availableModels.length > 0 ? '请选择模型' : '暂无可用模型'}
+                disabled={availableModels.length === 0}
+                className="w-full"
+              />
+              <div className="rounded-2xl border border-border bg-background/70 px-4 py-3 text-sm text-muted-foreground shadow-sm md:col-span-2 xl:col-span-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">当前分组</p>
+                <p className="mt-2 font-medium text-foreground">{selectedStockTab?.label || '未选择股票分组'}</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {selectedStockTab?.secondaryLabel || '先从左侧选择股票分组，再开始针对该分组的策略问答。'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative z-10 flex-1 overflow-y-auto space-y-6 p-4 custom-scrollbar md:p-6">
+            {messages.length === 0 && !loading ? (
+              <div className="flex h-full flex-col items-center justify-center text-center">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
+                  <Bot className="h-8 w-8 text-primary" />
+                </div>
+                <h3 className="mb-2 text-lg font-bold text-foreground">开始分析</h3>
+                <p className="mb-6 max-w-sm text-sm text-muted-foreground">
+                  先从左侧选择股票分组，然后输入问题；也可以点击下方推荐问题快速开始。
+                </p>
+                <div className="flex max-w-lg flex-wrap justify-center gap-2">
+                  {QUICK_QUESTIONS.map((question, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleQuickQuestion(question)}
+                      className="rounded-full border border-border bg-accent/40 px-3 py-1.5 text-sm text-muted-foreground transition-all hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+                    >
+                      {question.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              messages.map((message) => (
+                <div key={message.id} className={`flex gap-4 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                    message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-accent text-foreground'
+                  }`}>
+                    {message.role === 'user' ? 'U' : 'AI'}
+                  </div>
+                  <div
+                    className={`max-w-[82%] rounded-2xl px-5 py-3.5 ${
+                      message.role === 'user'
+                        ? 'rounded-tr-sm bg-primary text-primary-foreground shadow-md'
+                        : 'rounded-tl-sm border border-border bg-card text-foreground shadow-sm'
+                    }`}
+                  >
+                    {message.role === 'assistant' && message.strategyName ? (
+                      <div className="mb-2">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                          {message.strategyName}
+                        </span>
+                      </div>
+                    ) : null}
+                    {message.role === 'assistant' && renderThinkingBlock(message)}
+                    {message.role === 'assistant' && expandedThinking.has(message.id) && message.thinkingSteps ? renderThinkingDetails(message.thinkingSteps) : null}
+                    <div
+                      className={`prose prose-sm max-w-none break-words ${
+                        message.role === 'user'
+                          ? 'prose-invert text-primary-foreground'
+                          : 'text-foreground prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-code:text-primary'
+                      }`}
+                    >
+                      <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+
+            {loading ? (
+              <div className="flex gap-4">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent text-foreground text-xs font-bold">
+                  AI
+                </div>
+                <div className="min-w-[200px] max-w-[82%] rounded-2xl rounded-tl-sm border border-border bg-card px-5 py-4 shadow-sm">
+                  <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+                    <div className="relative h-4 w-4 flex-shrink-0">
+                      <div className="absolute inset-0 rounded-full border-2 border-primary/20" />
+                      <div className="absolute inset-0 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                    </div>
+                    <span className="font-medium text-foreground">{getCurrentStage(progressSteps)}</span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          <div className="relative z-20 border-t border-border bg-card/80 p-4 backdrop-blur-md md:p-6">
+            <div className="flex items-end gap-3">
+              <textarea
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  !selectedStockCode
+                    ? '先从左侧选择股票分组，再输入你的问题'
+                    : isDefaultStockCode(selectedStockCode)
+                      ? '例如：请帮我分析当前市场里最值得关注的机会'
+                      : `例如：分析 ${selectedStockCode} 当前走势与买点`
+                }
+                disabled={loading}
+                rows={1}
+                className="input-terminal flex-1 min-h-[48px] max-h-[220px] w-full resize-none rounded-2xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary/50 transition-all disabled:opacity-50"
+                style={{ height: 'auto' }}
+                onInput={(event) => {
+                  const target = event.target as HTMLTextAreaElement;
+                  target.style.height = 'auto';
+                  target.style.height = `${Math.min(target.scrollHeight, 220)}px`;
+                }}
+              />
+              <button
+                onClick={() => void handleSend()}
+                disabled={!input.trim() || loading}
+                className="btn-primary flex h-[48px] flex-shrink-0 items-center justify-center gap-2 px-6 shadow-lg"
+              >
+                {loading ? (
+                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                ) : null}
+                发送
+              </button>
+            </div>
+            <p className="mt-3 text-center text-xs text-muted-foreground/70">模型分析可能存在偏差，请结合实际行情谨慎判断。</p>
           </div>
         </div>
       </div>
-      </div>{/* end main chat area */}
     </div>
   );
 };
