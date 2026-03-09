@@ -26,6 +26,7 @@ interface SettingsFieldProps {
   item: SystemConfigItem;
   value: string;
   disabled?: boolean;
+  managedHint?: string;
   onChange: (key: string, value: string) => void;
   issues?: ConfigValidationIssue[];
 }
@@ -184,6 +185,7 @@ export const SettingsField: React.FC<SettingsFieldProps> = ({
   item,
   value,
   disabled = false,
+  managedHint,
   onChange,
   issues = [],
 }) => {

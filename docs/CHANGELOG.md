@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- 🎨 **WebUI visual refresh** — upgraded the web app to a left-sidebar workspace layout, redesigned the login screen, and rebuilt the stock selection area into a card-based watchlist panel backed by `STOCK_LIST`
+- 🧭 **Workspace navigation polish** — added a desktop top status bar, moved in-progress tasks into a header action popover, removed the divider above the theme toggle, and switched workspace feedback to right-side auto-dismiss toast notifications
+- ✨ **Cross-page UI polish** — unified Home / Chat / Backtest / Settings page headers, refined app-level cards and spacing, and rebuilt the settings area into a clearer configuration center with richer field guidance and improved LLM channel management visuals
+- 🧩 **Env-driven setup simplification** — reorganized AI and notification settings around the easiest `env.example` flows so users can start with the minimum required fields before touching advanced options
+- 🗂️ **Watchlist ownership clarification** — disabled `STOCK_LIST` editing in Settings and kept watchlist management in the homepage workspace only
+- 🤖 **Minimal AI model workflow** — reduced the AI settings page to real configured models only, with an add-model entry, per-model config editing, and a frontend validation-based `检测模型` action before saving
+- 🔔 **Minimal notification workflow** — changed notification settings to a blank-by-default channel manager that only shows configured channels, supports add-channel actions, and offers an enable/disable flow for keeping or clearing channel configs
+- 🎛️ **Backtest control console refresh** — rebuilt the Backtest page filter inputs and action buttons into a dedicated control panel with more consistent card, input, and button styling
+- 📉 **Backtest stock selector** — changed the stock code filter from free-text input to a dropdown populated by the existing watchlist
+- 📚 **Per-stock history workspace** — removed the global history panel from Home and added a stock detail view where the left side lists that stock's history and the right side shows the selected report
+- ➕ **Unified add-stock modal** — replaced scattered add-stock entry points with a single homepage button that opens a modal for manual code entry or image-based stock extraction
+- 🗂️ **Refined stock pool cards** — refined the stock cards, made rise/fall color marking more obvious, and simplified the stock pool back into a single unified list
+- ✂️ **Homepage header cleanup** — removed the quick code input and immediate analyze button from the stock workspace header to keep the top action area cleaner
+- 💬 **Three-column strategy chat** — reorganized the chat workspace into stock codes / session history / conversation columns and switched strategy selection to a cleaner dropdown flow
+- 🤖 **Strategy chat model + grouping polish** — added a selectable chat model dropdown, showed stock names alongside codes in the left sidebar, and routed unmatched sessions into a dedicated default group
+- 🧹 **System settings cleanup** — trimmed the System tab down to user-facing items only, hiding backend-oriented fields such as ports, logging, proxies, and debug controls
+- 🎨 **Tailwind Plus-style admin refresh** — unified Shell, Home, Settings, Backtest, History, and report surfaces into a light-first application UI with shared cards, tables, alerts, and empty states
+- 🧭 **Settings and detail-screen refinement** — rebuilt the settings area into a left-nav management console, added sticky save actions, and aligned stock history/detail views with the same admin information hierarchy
+- 🔐 **Settings-managed password auth** — added a dedicated settings card to enable/disable admin password login, initialize passwords from the settings page, and confirm auth shutdown without requiring password re-entry
+
+### Fixed
+- 🐛 **WebUI compare release build blockers** — restored the change-password submit flow, removed stale frontend variables, and fixed the settings schema required flag so `npm run lint` and `npm run build` pass again for Docker compare releases
+
+### Docs
+- 📝 Updated README Web UI section to describe the new sidebar navigation, login flow, and watchlist workspace
+- 📝 Added notes about the Tailwind Plus-style visual baseline, unified light/dark themes, and the new settings/detail screen structure
+- 📝 Documented the strategy chat model selector, stock-name sidebar labels, and the default grouping behavior for unmatched chat sessions
+- 📝 Clarified that frontend Docker releases should verify `npm run lint`, `npm run build`, and refreshed `static/` assets before deployment
+
 ## [3.4.9] - 2026-03-06
 
 ### Added
