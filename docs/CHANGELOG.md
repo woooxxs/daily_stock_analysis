@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - 🔐 **Settings-managed password auth** — added a dedicated settings card to enable/disable admin password login, initialize passwords from the settings page, and confirm auth shutdown without requiring password re-entry
 
 ### Fixed
+- 🐛 **WebUI stock quotes duplicated on refresh** — kept React StrictMode enabled, moved watchlist data into a shared stock-pool store, and deduped initial quote loading across remounts and pages
 - 🐛 **WebUI compare release build blockers** — restored the change-password submit flow, removed stale frontend variables, and fixed the settings schema required flag so `npm run lint` and `npm run build` pass again for Docker compare releases
 
 ### Docs
