@@ -398,16 +398,33 @@ class YfinanceFetcher(BaseFetcher):
 
         try:
             reader = csv.reader(StringIO(payload))
-            header = next(reader, None)
-            row = next(reader, None)
-            if header is None or row is None or len(row) < 8:
+            first_row = next(reader, None)
+            if first_row is None:
                 raise ValueError(f"unexpected Stooq payload: {payload}")
 
-            open_price = float(row[3])
-            high = float(row[4])
-            low = float(row[5])
-            price = float(row[6])
-            volume = int(float(row[7]))
+            normalized_first_row = [cell.strip() for cell in first_row]
+            header_tokens = {cell.lower() for cell in normalized_first_row if cell}
+            has_header = 'open' in header_tokens and 'close' in header_tokens
+            row = next(reader, None) if has_header else first_row
+            if row is None:
+                raise ValueError(f"unexpected Stooq payload: {payload}")
+
+            normalized_row = [cell.strip() for cell in row]
+            while normalized_row and normalized_row[-1] == '':
+                normalized_row.pop()
+
+            if len(normalized_row) >= 8:
+                open_index, high_index, low_index, price_index, volume_index = 3, 4, 5, 6, 7
+            elif len(normalized_row) >= 7:
+                open_index, high_index, low_index, price_index, volume_index = 2, 3, 4, 5, 6
+            else:
+                raise ValueError(f"unexpected Stooq payload: {payload}")
+
+            open_price = float(normalized_row[open_index])
+            high = float(normalized_row[high_index])
+            low = float(normalized_row[low_index])
+            price = float(normalized_row[price_index])
+            volume = int(float(normalized_row[volume_index]))
 
             change_amount = price - open_price
             change_pct = (change_amount / open_price * 100) if open_price > 0 else None

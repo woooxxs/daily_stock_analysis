@@ -101,8 +101,8 @@ class TestStooqFallback(unittest.TestCase):
     def test_skips_header_and_parses_first_data_row(self, mock_urlopen):
         mock_response = MagicMock()
         mock_response.read.return_value = (
-            b'Date,Time,Open,High,Low,Close,Volume\n'
-            b'2026-03-10,21:00:09,182.10,184.20,181.50,183.70,123456\n'
+            b'Symbol,Date,Time,Open,High,Low,Close,Volume\n'
+            b'AAPL.US,2026-03-10,21:00:09,182.10,184.20,181.50,183.70,123456\n'
         )
         mock_urlopen.return_value.__enter__.return_value = mock_response
 
@@ -116,9 +116,23 @@ class TestStooqFallback(unittest.TestCase):
         self.assertEqual(result.volume, 123456)
 
     @patch('data_provider.yfinance_fetcher.urlopen')
+    def test_parses_headerless_data_row(self, mock_urlopen):
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'AAPL.US,20260310,143324,257.645,259.9,256.95,259.28,481932,\n'
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+
+        result = self.fetcher._get_us_stock_quote_from_stooq('AAPL')
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.code, 'AAPL')
+        self.assertAlmostEqual(result.price, 259.28)
+        self.assertAlmostEqual(result.open_price, 257.645)
+        self.assertEqual(result.volume, 481932)
+
+    @patch('data_provider.yfinance_fetcher.urlopen')
     def test_returns_none_when_only_header_exists(self, mock_urlopen):
         mock_response = MagicMock()
-        mock_response.read.return_value = b'Date,Time,Open,High,Low,Close,Volume\n'
+        mock_response.read.return_value = b'Symbol,Date,Time,Open,High,Low,Close,Volume\n'
         mock_urlopen.return_value.__enter__.return_value = mock_response
 
         result = self.fetcher._get_us_stock_quote_from_stooq('AAPL')
