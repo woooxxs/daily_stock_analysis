@@ -14,6 +14,10 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({ data, isHistory = 
   const report: AnalysisReport = 'report' in data ? data.report : data;
   const recordId = report.meta.id;
   const { meta, summary, strategy, details } = report;
+  const modelUsed = (meta.modelUsed || '').trim();
+  const shouldShowModel = Boolean(
+    modelUsed && !['unknown', 'error', 'none', 'null', 'n/a'].includes(modelUsed.toLowerCase()),
+  );
 
   return (
     <div className="space-y-4">
@@ -21,6 +25,13 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({ data, isHistory = 
       <ReportStrategy strategy={strategy} />
       <ReportNews recordId={recordId} />
       <ReportDetails details={details} recordId={recordId} />
+
+      {/* 分析模型标记（Issue #528）— 报告末尾 */}
+      {shouldShowModel && (
+        <p className="text-xs text-gray-500 mt-3">
+          分析模型: {modelUsed}
+        </p>
+      )}
     </div>
   );
 };

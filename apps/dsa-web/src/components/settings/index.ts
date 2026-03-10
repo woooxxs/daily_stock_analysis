@@ -3,7 +3,7 @@ export * from './DataSourceManager';
 export * from './LLMChannelEditor';
 export * from './SettingsAlert';
 export * from './ChangePasswordCard';
-export * from './ImageStockExtractor';
+export * from './IntelligentImport';
 export * from './SettingsField';
 export * from './SettingsLoading';
 export * from './NotificationChannelManager';

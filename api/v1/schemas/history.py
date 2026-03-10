@@ -11,7 +11,7 @@
 
 from typing import Optional, List, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class HistoryItem(BaseModel):
@@ -101,7 +101,9 @@ class NewsIntelResponse(BaseModel):
 
 class ReportMeta(BaseModel):
     """报告元信息"""
-    
+
+    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+
     id: Optional[int] = Field(None, description="分析历史记录主键 ID（仅历史报告有此字段）")
     query_id: str = Field(..., description="分析记录关联 query_id（批量分析时重复）")
     stock_code: str = Field(..., description="股票代码")
@@ -110,6 +112,7 @@ class ReportMeta(BaseModel):
     created_at: Optional[str] = Field(None, description="创建时间")
     current_price: Optional[float] = Field(None, description="分析时股价")
     change_pct: Optional[float] = Field(None, description="分析时涨跌幅(%)")
+    model_used: Optional[str] = Field(None, description="分析使用的 LLM 模型")
 
 
 class ReportSummary(BaseModel):

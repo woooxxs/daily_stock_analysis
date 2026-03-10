@@ -11,6 +11,7 @@ export { default as Input } from './Input';
 export * from './EyeToggleIcon';
 export * from './Loading';
 export * from './Drawer';
+export * from './ApiErrorAlert';
 export * from './Collapsible';
 export * from './ScoreGauge';
 export * from './JsonViewer';
