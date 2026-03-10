@@ -42,14 +42,14 @@ function renderFieldControl(
   onPasswordFocus: () => void,
 ) {
   const schema = item.schema;
-  const commonClass = 'input-terminal';
+  const commonClass = 'input-terminal w-full rounded-2xl border border-input bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed';
   const controlType = schema?.uiControl ?? 'text';
   const isMultiValue = isMultiValueField(item);
 
   if (controlType === 'textarea') {
     return (
       <textarea
-        className={`${commonClass} min-h-[92px] resize-y`}
+        className={`${commonClass} min-h-[112px] resize-y`}
         value={value}
         disabled={disabled || !schema?.isEditable}
         onChange={(event) => onChange(event.target.value)}
@@ -59,27 +59,34 @@ function renderFieldControl(
 
   if (controlType === 'select' && schema?.options?.length) {
     return (
-        <Select
-          value={value}
-          onChange={onChange}
-          options={schema.options.map((option) => ({ value: option, label: option }))}
-          disabled={disabled || !schema.isEditable}
-          placeholder="请选择"
-        />
-      );
+      <Select
+        value={value}
+        onChange={onChange}
+        options={schema.options.map((option) => ({ value: option, label: option }))}
+        disabled={disabled || !schema.isEditable}
+        placeholder="请选择"
+        className="w-full"
+      />
+    );
   }
 
   if (controlType === 'switch') {
     const checked = value.trim().toLowerCase() === 'true';
     return (
-      <label className="inline-flex cursor-pointer items-center gap-3">
-        <input
-          type="checkbox"
-          checked={checked}
-          disabled={disabled || !schema?.isEditable}
-          onChange={(event) => onChange(event.target.checked ? 'true' : 'false')}
-        />
-        <span className="text-sm text-secondary">{checked ? '已启用' : '未启用'}</span>
+      <label className="inline-flex cursor-pointer items-center gap-3 rounded-2xl border border-input bg-background px-4 py-3 shadow-sm">
+        <div className="relative inline-flex items-center">
+          <input
+            type="checkbox"
+            className="peer sr-only"
+            checked={checked}
+            disabled={disabled || !schema?.isEditable}
+            onChange={(event) => onChange(event.target.checked ? 'true' : 'false')}
+          />
+          <div className="h-6 w-11 rounded-full bg-input transition-all after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full peer-disabled:opacity-50 peer-focus:ring-4 peer-focus:ring-primary/10" />
+        </div>
+        <span className={`text-sm font-medium ${checked ? 'text-primary' : 'text-muted-foreground'}`}>
+          {checked ? '已启用' : '未启用'}
+        </span>
       </label>
     );
   }
@@ -89,14 +96,14 @@ function renderFieldControl(
       const values = parseMultiValues(value);
 
       return (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {values.map((entry, index) => (
             <div className="flex items-center gap-2" key={`${item.key}-${index}`}>
               <input
                 type={isSecretVisible ? 'text' : 'password'}
                 readOnly={!isPasswordEditable}
                 onFocus={onPasswordFocus}
-                className={`${commonClass} flex-1`}
+                className={`${commonClass} flex-1 font-mono`}
                 value={entry}
                 disabled={disabled || !schema?.isEditable}
                 onChange={(event) => {
@@ -107,7 +114,7 @@ function renderFieldControl(
               />
               <button
                 type="button"
-                className="btn-secondary !p-2"
+                className="btn-secondary !p-2.5 shrink-0"
                 disabled={disabled || !schema?.isEditable}
                 onClick={onToggleSecretVisible}
                 title={isSecretVisible ? '隐藏' : '显示'}
@@ -117,7 +124,7 @@ function renderFieldControl(
               </button>
               <button
                 type="button"
-                className="btn-secondary !px-3 !py-2 text-xs"
+                className="btn-secondary !px-3 !py-2.5 text-xs shrink-0"
                 disabled={disabled || !schema?.isEditable || values.length <= 1}
                 onClick={() => {
                   const nextValues = values.filter((_, rowIndex) => rowIndex !== index);
@@ -129,16 +136,14 @@ function renderFieldControl(
             </div>
           ))}
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="btn-secondary !px-3 !py-2 text-xs"
-              disabled={disabled || !schema?.isEditable}
-              onClick={() => onChange(serializeMultiValues([...values, '']))}
-            >
-              添加 Key
-            </button>
-          </div>
+          <button
+            type="button"
+            className="btn-secondary !px-3 !py-2.5 text-xs"
+            disabled={disabled || !schema?.isEditable}
+            onClick={() => onChange(serializeMultiValues([...values, '']))}
+          >
+            添加 Key
+          </button>
         </div>
       );
     }
@@ -149,14 +154,14 @@ function renderFieldControl(
           type={isSecretVisible ? 'text' : 'password'}
           readOnly={!isPasswordEditable}
           onFocus={onPasswordFocus}
-          className={`${commonClass} flex-1`}
+          className={`${commonClass} flex-1 font-mono`}
           value={value}
           disabled={disabled || !schema?.isEditable}
           onChange={(event) => onChange(event.target.value)}
         />
         <button
           type="button"
-          className="btn-secondary !p-2"
+          className="btn-secondary !p-2.5 shrink-0"
           disabled={disabled || !schema?.isEditable}
           onClick={onToggleSecretVisible}
           title={isSecretVisible ? '隐藏' : '显示'}
@@ -190,62 +195,105 @@ export const SettingsField: React.FC<SettingsFieldProps> = ({
   issues = [],
 }) => {
   const schema = item.schema;
-  const isMultiValue = isMultiValueField(item);
   const title = getFieldTitleZh(item.key, item.key);
   const description = getFieldDescriptionZh(item.key);
   const hasError = issues.some((issue) => issue.severity === 'error');
+  const hasWarning = issues.some((issue) => issue.severity === 'warning');
+  const isManagedExternally = Boolean(managedHint);
   const [isSecretVisible, setIsSecretVisible] = useState(false);
   const [isPasswordEditable, setIsPasswordEditable] = useState(false);
 
   return (
-    <div className={`rounded-xl border p-4 ${hasError ? 'border-red-500/35' : 'border-white/8'} bg-elevated/50`}>
-      <div className="mb-2 flex items-center gap-2">
-        <label className="text-sm font-semibold text-white" htmlFor={`setting-${item.key}`}>
-          {title}
-        </label>
-        {schema?.isSensitive ? (
-          <span className="badge badge-purple text-[10px]">敏感</span>
-        ) : null}
-      </div>
+    <div
+      className={[
+        'rounded-[24px] border p-4 shadow-sm transition-all md:p-5',
+        hasError
+          ? 'border-destructive/30 bg-destructive/[0.04]'
+          : hasWarning
+            ? 'border-warning/30 bg-warning/[0.04]'
+            : 'border-border bg-background/70 hover:border-primary/20 hover:bg-background/90',
+      ].join(' ')}
+    >
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,260px)_1fr] lg:gap-6">
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+            {schema?.isRequired ? (
+              <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+                必填
+              </span>
+            ) : null}
+            {schema?.isSensitive ? (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                敏感字段
+              </span>
+            ) : null}
+            {hasError ? (
+              <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+                错误
+              </span>
+            ) : null}
+            {!hasError && hasWarning ? (
+              <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
+                提示
+              </span>
+            ) : null}
+          </div>
 
-      {description ? (
-        <p className="mb-3 text-xs text-muted" title={description}>
-          {description}
-        </p>
-      ) : null}
+          {description ? <p className="text-sm leading-6 text-muted-foreground">{description}</p> : null}
 
-      <div id={`setting-${item.key}`}>
-        {renderFieldControl(
-          item,
-          value,
-          disabled,
-          (nextValue) => onChange(item.key, nextValue),
-          isSecretVisible,
-          () => setIsSecretVisible((previous) => !previous),
-          isPasswordEditable,
-          () => setIsPasswordEditable(true),
-        )}
-      </div>
-
-      {schema?.isSensitive ? (
-        <p className="mt-2 text-[11px] text-secondary">
-          密钥默认隐藏，可点击眼睛图标查看明文。
-          {isMultiValue ? ' 支持添加多个输入框进行增删。' : ''}
-        </p>
-      ) : null}
-
-      {issues.length ? (
-        <div className="mt-2 space-y-1">
-          {issues.map((issue, index) => (
-            <p
-              key={`${issue.code}-${issue.key}-${index}`}
-              className={issue.severity === 'error' ? 'text-xs text-danger' : 'text-xs text-warning'}
-            >
-              {issue.message}
-            </p>
-          ))}
+          <div className="flex flex-wrap gap-2 text-[11px] font-medium text-muted-foreground">
+            <span className="rounded-full border border-border bg-card px-2.5 py-1">{schema?.uiControl ?? 'text'}</span>
+            <span className="rounded-full border border-border bg-card px-2.5 py-1">{schema?.dataType ?? 'string'}</span>
+            {isManagedExternally ? (
+              <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-primary">工作台管理</span>
+            ) : schema?.isEditable ? (
+              <span className="rounded-full border border-success/20 bg-success/10 px-2.5 py-1 text-success">可编辑</span>
+            ) : (
+              <span className="rounded-full border border-border bg-card px-2.5 py-1">只读</span>
+            )}
+          </div>
         </div>
-      ) : null}
+
+        <div className="space-y-3">
+          {renderFieldControl(
+            item,
+            value,
+            disabled || isManagedExternally,
+            (val) => onChange(item.key, val),
+            isSecretVisible,
+            () => setIsSecretVisible(!isSecretVisible),
+            isPasswordEditable,
+            () => setIsPasswordEditable(true),
+          )}
+
+          {managedHint ? <p className="text-xs leading-6 text-primary">{managedHint}</p> : null}
+
+          {schema?.isSensitive ? (
+            <p className="text-xs leading-6 text-muted-foreground">
+              敏感字段默认保持遮罩，聚焦后即可开始编辑；保存前请再次确认内容无误。
+            </p>
+          ) : null}
+
+          {issues.length ? (
+            <div className="space-y-2">
+              {issues.map((issue, index) => (
+                <div
+                  key={index}
+                  className={[
+                    'rounded-2xl border px-3 py-2 text-xs leading-6',
+                    issue.severity === 'error'
+                      ? 'border-destructive/20 bg-destructive/10 text-destructive'
+                      : 'border-warning/20 bg-warning/10 text-warning',
+                  ].join(' ')}
+                >
+                  {issue.message}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 };

@@ -1,5 +1,7 @@
 import type React from 'react';
 import { useEffect, useCallback } from 'react';
+import { X } from 'lucide-react';
+import { cn } from '../../utils/cn';
 
 interface DrawerProps {
   isOpen: boolean;
@@ -9,9 +11,6 @@ interface DrawerProps {
   width?: string;
 }
 
-/**
- * 侧滑抽屉组件 - 终端风格
- */
 export const Drawer: React.FC<DrawerProps> = ({
   isOpen,
   onClose,
@@ -19,14 +18,13 @@ export const Drawer: React.FC<DrawerProps> = ({
   children,
   width = 'max-w-2xl',
 }) => {
-  // ESC 键关闭
   const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+    (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
         onClose();
       }
     },
-    [onClose]
+    [onClose],
   );
 
   useEffect(() => {
@@ -34,56 +32,35 @@ export const Drawer: React.FC<DrawerProps> = ({
       document.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
     }
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
-  }, [isOpen, handleKeyDown]);
+  }, [handleKeyDown, isOpen]);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
-      {/* 遮罩层 */}
-      <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-300"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
 
-      {/* 抽屉内容 */}
-      <div className={`absolute inset-y-0 right-0 w-full ${width} flex`}>
-        <div
-          className="relative w-full flex flex-col
-            bg-card border-l border-white/10
-            shadow-2xl
-            transform transition-transform duration-300 ease-out
-            animate-slide-in-right"
-        >
-          {/* 头部 */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
-            {title && (
-              <div>
-                <span className="label-uppercase">DETAIL VIEW</span>
-                <h2 className="text-lg font-semibold text-white mt-1">
-                  {title}
-                </h2>
-              </div>
-            )}
+      <div className={cn('absolute inset-y-0 right-0 flex w-full', width)}>
+        <div className="animate-slide-in-right relative flex w-full flex-col border-l border-border bg-card shadow-2xl">
+          <div className="flex items-center justify-between border-b border-border px-6 py-4">
+            <div>
+              {title ? <p className="label-uppercase">Details</p> : null}
+              {title ? <h2 className="mt-1 text-lg font-semibold text-foreground">{title}</h2> : null}
+            </div>
             <button
               type="button"
               onClick={onClose}
-              className="dock-item !w-10 !h-10"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X className="h-5 w-5" />
             </button>
           </div>
-
-          {/* 内容区 */}
-          <div className="flex-1 overflow-y-auto p-6">
-            {children}
-          </div>
+          <div className="flex-1 overflow-y-auto p-6">{children}</div>
         </div>
       </div>
     </div>

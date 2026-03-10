@@ -2,7 +2,10 @@ import apiClient from './index';
 
 export interface ChatRequest {
   message: string;
+  session_id?: string;
   skills?: string[];
+  context?: Record<string, unknown>;
+  model?: string;
 }
 
 export interface ChatResponse {
@@ -20,6 +23,16 @@ export interface StrategyInfo {
 
 export interface StrategiesResponse {
   strategies: StrategyInfo[];
+}
+
+export interface ChatModelInfo {
+  value: string;
+  label: string;
+}
+
+export interface ChatModelsResponse {
+  current_model?: string;
+  models: ChatModelInfo[];
 }
 
 export interface ChatSessionItem {
@@ -46,6 +59,10 @@ export const agentApi = {
   },
   async getStrategies(): Promise<StrategiesResponse> {
     const response = await apiClient.get<StrategiesResponse>('/api/v1/agent/strategies');
+    return response.data;
+  },
+  async getModels(): Promise<ChatModelsResponse> {
+    const response = await apiClient.get<ChatModelsResponse>('/api/v1/agent/models');
     return response.data;
   },
   async getChatSessions(limit = 50): Promise<ChatSessionItem[]> {

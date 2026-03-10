@@ -2,7 +2,7 @@ import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Bot, MessageSquarePlus, Search, Trash2 } from 'lucide-react';
+import { Bot, CircleHelp, MessageSquarePlus, Trash2 } from 'lucide-react';
 import { agentApi, type ChatModelInfo, type ChatSessionItem, type StrategyInfo } from '../../api/agent';
 import { historyApi } from '../../api/history';
 import { generateUUID } from '../../utils/uuid';
@@ -399,8 +399,8 @@ export const StockAskPanel: React.FC<StockAskPanelProps> = ({ stockCode, stockNa
   };
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
-      <div className="overflow-hidden rounded-[28px] border border-border bg-card/70 shadow-sm">
+    <div className="grid h-full min-h-0 gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
+      <div className="flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-border bg-card/70 shadow-sm">
         <div className="flex items-center justify-between border-b border-border px-4 py-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Sessions</p>
@@ -415,7 +415,7 @@ export const StockAskPanel: React.FC<StockAskPanelProps> = ({ stockCode, stockNa
             <MessageSquarePlus className="h-4 w-4" />
           </button>
         </div>
-        <div className="max-h-[62vh] overflow-y-auto p-3">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {sessionsLoading ? (
             <div className="p-4 text-center text-xs text-muted-foreground">加载中...</div>
           ) : visibleSessions.length === 0 ? (
@@ -463,42 +463,60 @@ export const StockAskPanel: React.FC<StockAskPanelProps> = ({ stockCode, stockNa
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[28px] border border-border bg-card/60 shadow-sm">
+      <div className="flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-border bg-card/60 shadow-sm">
         <div className="border-b border-border bg-background/70 px-4 py-4 md:px-6">
-          <div className="grid gap-4 md:grid-cols-[280px_280px_minmax(0,1fr)] md:items-end">
-            <Select
-              label="分析策略"
-              value={selectedStrategy}
-              onChange={setSelectedStrategy}
-              options={[{ value: '', label: '通用分析' }, ...strategies.map((strategy) => ({ value: strategy.id, label: strategy.name }))]}
-              placeholder="请选择策略"
-              className="w-full"
-            />
-            <Select
-              label="对话模型"
-              value={selectedModel}
-              onChange={setSelectedModel}
-              options={availableModels}
-              placeholder={availableModels.length > 0 ? '请选择模型' : '暂无可用模型'}
-              disabled={availableModels.length === 0}
-              className="w-full"
-            />
-            <div className="rounded-2xl border border-border bg-background/70 px-4 py-3 text-sm text-muted-foreground shadow-sm">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                <Search className="h-3.5 w-3.5 text-primary" />
-                当前股票上下文
+          <div className="relative">
+            <div className="custom-scrollbar flex items-center gap-3 overflow-x-auto py-1 pr-12 whitespace-nowrap">
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="text-sm font-medium text-foreground">分析策略</span>
+              <Select
+                value={selectedStrategy}
+                onChange={setSelectedStrategy}
+                options={[{ value: '', label: '通用分析' }, ...strategies.map((strategy) => ({ value: strategy.id, label: strategy.name }))]}
+                placeholder="请选择策略"
+                className="w-[220px] shrink-0"
+              />
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="text-sm font-medium text-foreground">对话模型</span>
+              <Select
+                value={selectedModel}
+                onChange={setSelectedModel}
+                options={availableModels}
+                placeholder={availableModels.length > 0 ? '请选择模型' : '暂无可用模型'}
+                disabled={availableModels.length === 0}
+                className="w-[220px] shrink-0"
+              />
+            </div>
+
+            </div>
+
+            <div className="absolute right-0 top-1/2 -translate-y-1/2">
+              <div className="group relative inline-flex shrink-0">
+                <button
+                  type="button"
+                  className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                  title="查看当前股票上下文"
+                  aria-label="查看当前股票上下文"
+                >
+                  <CircleHelp className="h-4 w-4 text-primary" />
+                </button>
+
+                <div className="pointer-events-none absolute right-0 top-full z-20 mt-2 w-80 rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground opacity-0 shadow-xl transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100">
+                  <p className="font-medium text-foreground">{displayName}（{normalizedCode}）</p>
+                  <p className="mt-1 leading-6 text-muted-foreground">
+                    {selectedStrategyInfo?.description || '不限定策略模板，问题会固定围绕当前股票展开分析。'}
+                  </p>
+                </div>
               </div>
-              <p className="mt-2 font-medium text-foreground">{displayName}（{normalizedCode}）</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                {selectedStrategyInfo?.description || '不限定策略模板，问题会固定围绕当前股票展开分析。'}
-              </p>
             </div>
           </div>
         </div>
 
-        <div className="custom-scrollbar max-h-[52vh] overflow-y-auto space-y-6 p-4 md:p-6">
+        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto space-y-5 p-4 md:p-5">
           {messages.length === 0 && !loading ? (
-            <div className="flex min-h-[320px] flex-col items-center justify-center text-center">
+            <div className="flex min-h-[220px] flex-col items-center justify-center text-center">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
                 <Bot className="h-8 w-8 text-primary" />
               </div>
@@ -513,7 +531,7 @@ export const StockAskPanel: React.FC<StockAskPanelProps> = ({ stockCode, stockNa
                 <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-accent text-foreground'}`}>
                   {message.role === 'user' ? 'U' : 'AI'}
                 </div>
-                <div className={`max-w-[86%] rounded-2xl px-5 py-3.5 ${message.role === 'user' ? 'rounded-tr-sm bg-primary text-primary-foreground shadow-md' : 'rounded-tl-sm border border-border bg-card text-foreground shadow-sm'}`}>
+                <div className={`max-w-[86%] rounded-2xl px-4 py-3 ${message.role === 'user' ? 'rounded-tr-sm bg-primary text-primary-foreground shadow-md' : 'rounded-tl-sm border border-border bg-card text-foreground shadow-sm'}`}>
                   {message.role === 'assistant' && message.strategyName ? (
                     <div className="mb-2">
                       <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
@@ -521,7 +539,7 @@ export const StockAskPanel: React.FC<StockAskPanelProps> = ({ stockCode, stockNa
                       </span>
                     </div>
                   ) : null}
-                  <div className={`prose prose-sm max-w-none break-words ${message.role === 'user' ? 'prose-invert text-primary-foreground' : 'text-foreground prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-code:text-primary'}`}>
+                  <div className={`prose prose-sm max-w-none break-words text-[13px] leading-6 ${message.role === 'user' ? 'prose-invert text-primary-foreground prose-p:text-[13px] prose-li:text-[13px] prose-headings:text-sm prose-code:text-[12px]' : 'text-foreground prose-headings:text-foreground prose-headings:text-sm prose-p:text-foreground prose-p:text-[13px] prose-li:text-[13px] prose-strong:text-foreground prose-code:text-[12px] prose-code:text-primary'}`}>
                     <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
                   </div>
                 </div>
@@ -572,7 +590,6 @@ export const StockAskPanel: React.FC<StockAskPanelProps> = ({ stockCode, stockNa
               发送
             </button>
           </div>
-          <p className="mt-3 text-center text-xs text-muted-foreground/70">单股问股会默认带入当前股票上下文，模型分析仅供参考。</p>
         </div>
       </div>
 

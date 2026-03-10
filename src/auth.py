@@ -31,7 +31,6 @@ RATE_LIMIT_MAX_FAILURES = 5
 SESSION_MAX_AGE_HOURS_DEFAULT = 24
 MIN_PASSWORD_LEN = 6
 
-# Lazy-loaded state
 _auth_enabled: Optional[bool] = None
 _session_secret: Optional[bytes] = None
 _password_hash_salt: Optional[bytes] = None
@@ -98,16 +97,16 @@ def _load_session_secret() -> Optional[bytes]:
         data_dir.mkdir(parents=True, exist_ok=True)
         new_secret = secrets.token_bytes(32)
         try:
-            with open(secret_path, "xb") as f:
-                f.write(new_secret)
+            with open(secret_path, "xb") as file_obj:
+                file_obj.write(new_secret)
             secret_path.chmod(0o600)
         except FileExistsError:
             _session_secret = secret_path.read_bytes()
         else:
             _session_secret = new_secret
         return _session_secret
-    except OSError as e:
-        logger.error("Failed to create or read .session_secret: %s", e)
+    except OSError as exc:
+        logger.error("Failed to create or read .session_secret: %s", exc)
         return None
 
 
@@ -123,7 +122,7 @@ def _parse_password_hash(value: str) -> Optional[Tuple[bytes, bytes]]:
         salt = base64.standard_b64decode(salt_b64)
         stored_hash = base64.standard_b64decode(hash_b64)
         if salt and stored_hash:
-            return (salt, stored_hash)
+            return salt, stored_hash
     except (ValueError, TypeError):
         pass
     return None
@@ -158,9 +157,16 @@ def _load_credential_from_file() -> bool:
             return False
         _password_hash_salt, _password_hash_stored = parsed
         return True
-    except OSError as e:
-        logger.error("Failed to read credential file: %s", e)
+    except OSError as exc:
+        logger.error("Failed to read credential file: %s", exc)
         return False
+
+
+def refresh_auth_state() -> None:
+    """Reload auth-related state from disk and env."""
+    global _auth_enabled
+    _auth_enabled = None
+    _load_credential_from_file()
 
 
 def is_auth_enabled() -> bool:
@@ -170,6 +176,11 @@ def is_auth_enabled() -> bool:
         return _auth_enabled
     _auth_enabled = _is_auth_enabled_from_env()
     return _auth_enabled
+
+
+def has_stored_password() -> bool:
+    """Return whether a valid stored password hash exists."""
+    return _load_credential_from_file()
 
 
 def is_password_set() -> bool:
@@ -192,20 +203,17 @@ def _get_session_secret() -> Optional[bytes]:
     return _load_session_secret()
 
 
-def _validate_password(pwd: str) -> Optional[str]:
+def _validate_password(password: str) -> Optional[str]:
     """Return error message if invalid, None if valid."""
-    if not pwd or not pwd.strip():
+    if not password or not password.strip():
         return "密码不能为空"
-    if len(pwd) < MIN_PASSWORD_LEN:
+    if len(password) < MIN_PASSWORD_LEN:
         return f"密码至少 {MIN_PASSWORD_LEN} 位"
     return None
 
 
 def set_initial_password(password: str) -> Optional[str]:
-    """
-    Set initial password (first-time setup). Returns error message or None on success.
-    Atomic write with 0o600 permissions.
-    """
+    """Set initial password. Returns error message or None on success."""
     err = _validate_password(password)
     if err:
         return err
@@ -230,9 +238,10 @@ def set_initial_password(password: str) -> Optional[str]:
         tmp_path.write_text(content)
         tmp_path.chmod(0o600)
         tmp_path.rename(cred_path)
+        _load_credential_from_file()
         return None
-    except OSError as e:
-        logger.error("Failed to write credential file: %s", e)
+    except OSError as exc:
+        logger.error("Failed to write credential file: %s", exc)
         return "密码保存失败"
 
 
@@ -246,9 +255,7 @@ def verify_password(password: str) -> bool:
 
 
 def change_password(current: str, new: str) -> Optional[str]:
-    """
-    Change password. Verifies current, writes new hash. Returns error message or None on success.
-    """
+    """Change password. Returns error message or None on success."""
     if not is_auth_enabled():
         return "认证功能未启用"
     if not is_password_set():
@@ -280,11 +287,10 @@ def change_password(current: str, new: str) -> Optional[str]:
         tmp_path.write_text(content)
         tmp_path.chmod(0o600)
         tmp_path.rename(cred_path)
-        # Reload into memory so subsequent verify_password uses new hash
         _load_credential_from_file()
         return None
-    except OSError as e:
-        logger.error("Failed to write credential file: %s", e)
+    except OSError as exc:
+        logger.error("Failed to write credential file: %s", exc)
         return "密码保存失败"
 
 
@@ -342,11 +348,11 @@ def check_rate_limit(ip: str) -> bool:
     lock = _get_lock()
     now = time.time()
     with lock:
-        expired_keys = [k for k, (_, ts) in _rate_limit.items() if now - ts > RATE_LIMIT_WINDOW_SEC]
-        for k in expired_keys:
-            del _rate_limit[k]
+        expired_keys = [key for key, (_, ts) in _rate_limit.items() if now - ts > RATE_LIMIT_WINDOW_SEC]
+        for key in expired_keys:
+            del _rate_limit[key]
         if ip in _rate_limit:
-            count, first_ts = _rate_limit[ip]
+            count, _first_ts = _rate_limit[ip]
             if count >= RATE_LIMIT_MAX_FAILURES:
                 return False
         return True
@@ -375,10 +381,7 @@ def clear_rate_limit(ip: str) -> None:
 
 
 def overwrite_password(new_password: str) -> Optional[str]:
-    """
-    Overwrite stored password without verifying current. For CLI reset only.
-    Returns error message or None on success.
-    """
+    """Overwrite stored password without verifying current. For CLI reset only."""
     if not is_auth_enabled():
         return "认证功能未启用"
     err = _validate_password(new_password)
@@ -407,8 +410,8 @@ def overwrite_password(new_password: str) -> Optional[str]:
         tmp_path.rename(cred_path)
         _load_credential_from_file()
         return None
-    except OSError as e:
-        logger.error("Failed to write credential file: %s", e)
+    except OSError as exc:
+        logger.error("Failed to write credential file: %s", exc)
         return "密码保存失败"
 
 
@@ -420,19 +423,19 @@ def reset_password_cli() -> int:
         return 1
 
     print("Enter new admin password (will not echo):", end=" ")
-    pwd = getpass.getpass("")
-    err = _validate_password(pwd)
+    password = getpass.getpass("")
+    err = _validate_password(password)
     if err:
         print(f"Error: {err}", file=sys.stderr)
         return 1
 
     print("Confirm new password:", end=" ")
-    pwd2 = getpass.getpass("")
-    if pwd != pwd2:
+    password_confirm = getpass.getpass("")
+    if password != password_confirm:
         print("Error: Passwords do not match", file=sys.stderr)
         return 1
 
-    err = overwrite_password(pwd)
+    err = overwrite_password(password)
     if err:
         print(f"Error: {err}", file=sys.stderr)
         return 1

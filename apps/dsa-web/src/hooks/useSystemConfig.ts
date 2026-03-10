@@ -74,6 +74,7 @@ export function useSystemConfig() {
 
   // UI state
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
+  const [draftEnabled, setDraftEnabled] = useState<Record<string, boolean>>({});
   const [activeCategory, setActiveCategory] = useState<string>('base');
   const [validationIssues, setValidationIssues] = useState<ConfigValidationIssue[]>([]);
   const [toast, setToast] = useState<ToastState>(null);
@@ -90,9 +91,10 @@ export function useSystemConfig() {
       serverItems.map((item) => ({
         ...item,
         value: draftValues[item.key] ?? item.value,
+        isCommented: !(draftEnabled[item.key] ?? !item.isCommented),
       })),
     );
-  }, [draftValues, serverItems]);
+  }, [draftEnabled, draftValues, serverItems]);
 
   const serverItemByKey = useMemo(() => {
     const map: Record<string, SystemConfigItem> = {};
@@ -148,12 +150,14 @@ export function useSystemConfig() {
 
       const normalizedDraft = normalizeFieldValue(draftRaw, item.schema);
       const normalizedCurrent = normalizeFieldValue(item.value, item.schema);
-      if (normalizedDraft !== normalizedCurrent) {
+      const currentEnabled = !item.isCommented;
+      const nextEnabled = draftEnabled[item.key] ?? currentEnabled;
+      if (normalizedDraft !== normalizedCurrent || nextEnabled !== currentEnabled) {
         keys.push(item.key);
       }
     }
     return keys;
-  }, [draftValues, serverItems]);
+  }, [draftEnabled, draftValues, serverItems]);
 
   const hasDirty = dirtyKeys.length > 0;
 
@@ -176,10 +180,13 @@ export function useSystemConfig() {
       setMaskToken(token || '******');
 
       const draft: Record<string, string> = {};
+      const enabled: Record<string, boolean> = {};
       for (const item of sorted) {
         draft[item.key] = item.value;
+        enabled[item.key] = !item.isCommented;
       }
       setDraftValues(draft);
+      setDraftEnabled(enabled);
 
       const defaultCategory = sorted[0]?.schema?.category || 'base';
       setActiveCategory((current) => {
@@ -210,10 +217,13 @@ export function useSystemConfig() {
 
   const resetDraft = useCallback(() => {
     const next: Record<string, string> = {};
+    const nextEnabled: Record<string, boolean> = {};
     for (const item of serverItems) {
       next[item.key] = item.value;
+      nextEnabled[item.key] = !item.isCommented;
     }
     setDraftValues(next);
+    setDraftEnabled(nextEnabled);
     setValidationIssues([]);
     setSaveError(null);
   }, [serverItems]);
@@ -225,22 +235,33 @@ export function useSystemConfig() {
     }));
   }, []);
 
+  const setDraftItemEnabled = useCallback((key: string, enabled: boolean) => {
+    setDraftEnabled((previous) => ({
+      ...previous,
+      [key]: enabled,
+    }));
+  }, []);
+
   const getChangedItems = useCallback((): SystemConfigUpdateItem[] => {
     return dirtyKeys
       .map((key) => {
         const serverItem = serverItemByKey[key];
         const normalizedValue = normalizeFieldValue(draftValues[key] ?? '', serverItem?.schema);
+        const currentEnabled = serverItem ? !serverItem.isCommented : true;
+        const nextEnabled = draftEnabled[key] ?? currentEnabled;
         return {
           key,
           value: normalizedValue,
+          enabled: nextEnabled === currentEnabled ? undefined : nextEnabled,
         };
       })
       .filter((item) => {
         const serverItem = serverItemByKey[item.key];
         const normalizedCurrent = normalizeFieldValue(serverItem?.value ?? '', serverItem?.schema);
-        return item.value !== normalizedCurrent;
+        const currentEnabled = serverItem ? !serverItem.isCommented : true;
+        return item.value !== normalizedCurrent || item.enabled !== undefined && item.enabled !== currentEnabled;
       });
-  }, [dirtyKeys, draftValues, serverItemByKey]);
+  }, [dirtyKeys, draftEnabled, draftValues, serverItemByKey]);
 
   const save = useCallback(async (): Promise<SaveResult> => {
     if (!hasDirty) {
@@ -326,6 +347,7 @@ export function useSystemConfig() {
     configVersion,
     maskToken,
     serverItems,
+    items: mergedItems,
     categories,
     itemsByCategory,
     issueByKey,
@@ -351,5 +373,6 @@ export function useSystemConfig() {
     save,
     resetDraft,
     setDraftValue,
+    setDraftItemEnabled,
   };
 }

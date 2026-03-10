@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { cn } from '../../utils/cn';
 
 interface CollapsibleProps {
   title: string;
@@ -8,10 +10,6 @@ interface CollapsibleProps {
   className?: string;
 }
 
-/**
- * 可折叠面板组件
- * 支持动画展开/收起
- */
 export const Collapsible: React.FC<CollapsibleProps> = ({
   title,
   children,
@@ -22,47 +20,21 @@ export const Collapsible: React.FC<CollapsibleProps> = ({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div
-      className={`
-        rounded-xl overflow-hidden
-        bg-gradient-to-br from-slate-800/50 to-slate-900/50
-        border border-cyan-500/10 hover:border-cyan-500/20
-        transition-all duration-300
-        ${className}
-      `}
-    >
-      {/* 标题栏 */}
+    <div className={cn('overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all', className)}>
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-4 py-3 text-left
-          hover:bg-white/5 transition-colors"
+        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-accent/60"
       >
         <div className="flex items-center gap-3">
-          {icon && <span className="text-cyan-400">{icon}</span>}
-          <span className="font-medium text-gray-200">{title}</span>
+          {icon ? <span className="text-primary">{icon}</span> : null}
+          <span className="font-medium text-foreground">{title}</span>
         </div>
-        <svg
-          className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${
-            isOpen ? 'rotate-180' : ''
-          }`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        <ChevronDown className={cn('h-5 w-5 text-muted-foreground transition-transform duration-300', isOpen && 'rotate-180')} />
       </button>
 
-      {/* 内容区 */}
-      <div
-        className={`
-          overflow-hidden transition-all duration-300 ease-in-out
-          ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}
-        `}
-      >
-        <div className="px-4 pb-4 pt-2 border-t border-cyan-500/10">
-          {children}
-        </div>
+      <div className={cn('overflow-hidden transition-all duration-300 ease-in-out', isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0')}>
+        <div className="border-t border-border px-4 pb-4 pt-2">{children}</div>
       </div>
     </div>
   );

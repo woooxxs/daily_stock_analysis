@@ -15,7 +15,7 @@ type StockHistoryPanelProps = {
   listClassName?: string;
 };
 
-export const StockHistoryPanel: React.FC<StockHistoryPanelProps> = ({ stockCode, fallbackName, listClassName = 'h-[calc(100vh-220px)]' }) => {
+export const StockHistoryPanel: React.FC<StockHistoryPanelProps> = ({ stockCode, fallbackName, listClassName = 'h-full' }) => {
   const normalizedCode = stockCode.toUpperCase();
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [selectedReport, setSelectedReport] = useState<AnalysisReport | null>(null);
@@ -126,11 +126,11 @@ export const StockHistoryPanel: React.FC<StockHistoryPanelProps> = ({ stockCode,
   );
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
       {loadError ? <InlineAlert tone="error" message={loadError} /> : null}
 
-      <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <div className="xl:sticky xl:top-24 xl:self-start">
+      <div className="grid min-h-0 flex-1 items-stretch gap-4 overflow-hidden xl:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="h-full min-h-0 overflow-hidden">
           <HistoryList
             items={historyItems}
             isLoading={isLoadingHistory}
@@ -143,9 +143,9 @@ export const StockHistoryPanel: React.FC<StockHistoryPanelProps> = ({ stockCode,
           />
         </div>
 
-        <div className="space-y-4">
+        <div className="h-full min-h-0 overflow-hidden">
           {isLoadingReport ? (
-            <SectionCard>
+            <SectionCard className="h-full overflow-hidden">
               <div className="space-y-3">
                 <div className="h-4 w-40 animate-pulse rounded bg-muted/40" />
                 <div className="h-32 animate-pulse rounded-2xl bg-muted/20" />
@@ -153,12 +153,16 @@ export const StockHistoryPanel: React.FC<StockHistoryPanelProps> = ({ stockCode,
               </div>
             </SectionCard>
           ) : selectedReport ? (
-            <ReportSummary data={selectedReport} isHistory />
+            <div className="custom-scrollbar h-full min-h-0 overflow-y-auto pr-1">
+              <ReportSummary data={selectedReport} isHistory />
+            </div>
           ) : (
-            <EmptyState
-              title={`暂无 ${stockName} 的历史报告`}
-              description="当前股票还没有可复盘的分析结果。先发起一次分析，后续这里会自动沉淀专属历史记录。"
-            />
+            <div className="flex h-full items-center justify-center">
+              <EmptyState
+                title={`暂无 ${stockName} 的历史报告`}
+                description="当前股票还没有可复盘的分析结果。先发起一次分析，后续这里会自动沉淀专属历史记录。"
+              />
+            </div>
           )}
         </div>
       </div>

@@ -59,6 +59,8 @@ export interface SystemConfigItem {
   key: string;
   value: string;
   rawValueExists: boolean;
+  linePresent: boolean;
+  isCommented: boolean;
   isMasked: boolean;
   schema?: SystemConfigFieldSchema;
 }
@@ -73,6 +75,7 @@ export interface SystemConfigResponse {
 export interface SystemConfigUpdateItem {
   key: string;
   value: string;
+  enabled?: boolean;
 }
 
 export interface UpdateSystemConfigRequest {

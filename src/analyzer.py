@@ -12,6 +12,7 @@ A股自选股智能分析系统 - AI分析层
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, List
@@ -118,6 +119,71 @@ def is_meaningful_stock_name(name: Optional[str], stock_code: str) -> bool:
         return False
 
     return True
+
+
+def normalize_trend_prediction_text(value: Optional[str]) -> str:
+    """Normalize trend prediction text for storage and API output."""
+    if not value:
+        return '震荡'
+
+    text = str(value)
+    cleaned = (
+        text.replace('```json', '')
+        .replace('```', '')
+        .replace('**', '')
+        .replace('__', '')
+        .replace('📈', '')
+        .replace('📉', '')
+        .replace('↔️', '')
+        .strip()
+    )
+    cleaned = re.sub(r'^[\s\-*#>·•:：=【】\[\]()（）]+', '', cleaned).strip()
+
+    previous = ''
+    while previous != cleaned:
+        previous = cleaned
+        cleaned = re.sub(r'^(趋势预测|趋势|预测|方向|trend_prediction|trend)\s*[:：=·•\-*\s]*', '', cleaned, flags=re.IGNORECASE).strip()
+
+    if not cleaned:
+        return '震荡'
+
+    normalized = cleaned.lower()
+    if '强烈看空' in cleaned:
+        return '强烈看空'
+    if '强势空头' in cleaned:
+        return '强势空头'
+    if '空头排列' in cleaned:
+        return '空头排列 📉'
+    if '弱势空头' in cleaned:
+        return '弱势空头'
+    if any(token in normalized for token in ('看空', '看跌', 'bearish')):
+        return '看空'
+    if any(token in cleaned for token in ('下行', '下跌', '下探', '走弱', '短期走弱', '偏空', '偏弱')):
+        return '下行'
+
+    if '强烈看多' in cleaned:
+        return '强烈看多'
+    if '强势多头' in cleaned:
+        return '强势多头'
+    if '多头排列' in cleaned:
+        return '多头排列 📈'
+    if '弱势多头' in cleaned:
+        return '弱势多头'
+    if any(token in normalized for token in ('看多', '看涨', 'bullish')):
+        return '看多'
+    if any(token in cleaned for token in ('上涨', '上行', '上攻', '反弹', '走强', '偏强', '短期向好')):
+        return '上涨'
+
+    if '震荡整理' in cleaned:
+        return '震荡整理 ↔️'
+    if any(token in cleaned for token in ('震荡', '盘整', '横盘', '整理')):
+        return '震荡'
+    if '中性' in cleaned:
+        return '中性'
+    if '观望' in cleaned:
+        return '观望'
+
+    return cleaned
 
 
 def get_stock_name_multi_source(
@@ -1200,7 +1266,7 @@ class GeminiAnalyzer:
                     name=name,
                     # 核心指标
                     sentiment_score=int(data.get('sentiment_score', 50)),
-                    trend_prediction=data.get('trend_prediction', '震荡'),
+                    trend_prediction=normalize_trend_prediction_text(data.get('trend_prediction', '震荡')),
                     operation_advice=data.get('operation_advice', '持有'),
                     decision_type=decision_type,
                     confidence_level=data.get('confidence_level', '中'),

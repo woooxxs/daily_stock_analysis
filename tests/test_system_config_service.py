@@ -20,6 +20,7 @@ class SystemConfigServiceTestCase(unittest.TestCase):
                 [
                     "STOCK_LIST=600519,000001",
                     "GEMINI_API_KEY=secret-key-value",
+                    "# WECHAT_WEBHOOK_URL=https://example.com/webhook",
                     "SCHEDULE_TIME=18:00",
                     "LOG_LEVEL=INFO",
                 ]
@@ -46,6 +47,19 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertEqual(items["GEMINI_API_KEY"]["value"], "secret-key-value")
         self.assertFalse(items["GEMINI_API_KEY"]["is_masked"])
         self.assertTrue(items["GEMINI_API_KEY"]["raw_value_exists"])
+        self.assertTrue(items["GEMINI_API_KEY"]["line_present"])
+        self.assertFalse(items["GEMINI_API_KEY"]["is_commented"])
+
+    def test_get_config_returns_commented_entry_metadata(self) -> None:
+        payload = self.service.get_config(include_schema=True)
+        items = {item["key"]: item for item in payload["items"]}
+
+        self.assertIn("WECHAT_WEBHOOK_URL", items)
+        self.assertEqual(items["WECHAT_WEBHOOK_URL"]["value"], "https://example.com/webhook")
+        self.assertTrue(items["WECHAT_WEBHOOK_URL"]["raw_value_exists"])
+        self.assertTrue(items["WECHAT_WEBHOOK_URL"]["line_present"])
+        self.assertTrue(items["WECHAT_WEBHOOK_URL"]["is_commented"])
+        self.assertNotIn("WECHAT_WEBHOOK_URL", self.manager.read_config_map())
 
     def test_update_preserves_masked_secret(self) -> None:
         old_version = self.manager.get_config_version()
@@ -67,6 +81,57 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         current_map = self.manager.read_config_map()
         self.assertEqual(current_map["STOCK_LIST"], "600519,300750")
         self.assertEqual(current_map["GEMINI_API_KEY"], "secret-key-value")
+
+    def test_update_can_comment_existing_secret_value(self) -> None:
+        old_version = self.manager.get_config_version()
+        response = self.service.update(
+            config_version=old_version,
+            items=[{"key": "GEMINI_API_KEY", "value": "******", "enabled": False}],
+            mask_token="******",
+            reload_now=False,
+        )
+
+        self.assertTrue(response["success"])
+        env_content = self.env_path.read_text(encoding="utf-8")
+        self.assertIn("# GEMINI_API_KEY=secret-key-value", env_content)
+        self.assertNotIn("GEMINI_API_KEY", self.manager.read_config_map())
+
+    def test_update_can_uncomment_existing_secret_value(self) -> None:
+        commented_content = self.env_path.read_text(encoding="utf-8").replace(
+            "GEMINI_API_KEY=secret-key-value",
+            "# GEMINI_API_KEY=secret-key-value",
+        )
+        self.env_path.write_text(commented_content, encoding="utf-8")
+
+        old_version = self.manager.get_config_version()
+        response = self.service.update(
+            config_version=old_version,
+            items=[{"key": "GEMINI_API_KEY", "value": "******", "enabled": True}],
+            mask_token="******",
+            reload_now=False,
+        )
+
+        self.assertTrue(response["success"])
+        env_content = self.env_path.read_text(encoding="utf-8")
+        self.assertIn("GEMINI_API_KEY=secret-key-value", env_content)
+        self.assertNotIn("# GEMINI_API_KEY=secret-key-value", env_content)
+        self.assertEqual(self.manager.read_config_map()["GEMINI_API_KEY"], "secret-key-value")
+
+    def test_update_inserts_new_key_by_template_order(self) -> None:
+        old_version = self.manager.get_config_version()
+        self.service.update(
+            config_version=old_version,
+            items=[{"key": "TUSHARE_TOKEN", "value": "token-123"}],
+            reload_now=False,
+        )
+
+        lines = self.env_path.read_text(encoding="utf-8").splitlines()
+        tushare_index = lines.index("TUSHARE_TOKEN=token-123")
+        schedule_index = lines.index("SCHEDULE_TIME=18:00")
+        stock_index = lines.index("STOCK_LIST=600519,000001")
+
+        self.assertGreater(tushare_index, stock_index)
+        self.assertLess(tushare_index, schedule_index)
 
     def test_validate_reports_invalid_time(self) -> None:
         validation = self.service.validate(items=[{"key": "SCHEDULE_TIME", "value": "25:70"}])

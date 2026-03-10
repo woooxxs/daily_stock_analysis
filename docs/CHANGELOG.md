@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- 🧩 **Settings information architecture** — kept a single `/settings` page but split it into compact in-page menus for AI models, vision, data sources, proxy, notifications, security, schedules, and other settings
+- 🔐 **Comment-based env toggles** — credentials, channels, and data-source secrets now preserve values in `.env` and use commented lines to represent disabled state, while boolean switches still write `true/false`
+- 👁️ **Vision settings split-out** — moved `VISION_MODEL` and `VISION_PROVIDER_PRIORITY` into a dedicated settings section and relegated `OPENAI_VISION_MODEL` to compatibility-only display
+- 🧱 **Security and schedule split** — password login management, password change, and scheduler fields now live in dedicated settings sections instead of a mixed system tab
+- 🪶 **Settings density cleanup** — removed redundant explanation cards, shortened headers, and switched model / notification / data-source actions to compact single-line controls
 - 🪟 **Watchlist detail modal** — homepage stock cards now open a centered detail modal with `历史记录 / 问股` tabs; AI follow-up stays scoped to the current stock instead of jumping to the generic strategy chat view
 - 🧠 **Data-source configuration expansion** — Settings now exposes a dedicated data-source category with provider priority, Vision extraction, proxy, and compatibility options grouped by task-oriented summaries
 - 🔐 **One-click password auth enablement** — password login management now uses a single action button plus a confirmation modal for setting and confirming the admin password before activation
@@ -37,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - 🔐 **Settings-managed password auth** — added a dedicated settings card to enable/disable admin password login, initialize passwords from the settings page, and confirm auth shutdown without requiring password re-entry
 
 ### Fixed
+- 🤖 **LLM settings key mismatch** — AI model editor now reads and writes `LITELLM_MODEL` and `LITELLM_FALLBACK_MODELS` instead of stale `LLM_MODEL` / `LLM_BACKUP_MODEL`
+- 🧠 **DeepSeek false negative in settings** — AI model page now recognizes saved or commented channel configs and avoids incorrectly showing “未配置任何模型” when a provider is present but disabled or preserved in `.env`
+- 🔘 **Wrapped add buttons** — fixed the model / notification / data-source add buttons so their labels stay on a single line in narrow layouts
+- 📝 **.env comment-state persistence** — system config API now returns line presence and commented state, supports toggling enabled status on update, and inserts new keys according to `.env.example` order instead of blindly appending
 - 🏷️ **US stock title fallback** — watchlist cards and quote responses now ignore code-only placeholder names, fall back to meaningful names, and add stable ETF mappings for tickers such as `VOO`, `SPY`, `QQQ`, and `DIA`
 - 🐛 **US realtime quote 404 misclassification** — stock quote API now reports upstream quote unavailability as service degradation instead of incorrectly returning 404 for valid US tickers like `AAPL`
 - 🕒 **Watchlist analysis time timezone fix** — stock cards now show last analysis time in Asia/Shanghai with hour and minute precision

@@ -1,17 +1,15 @@
 import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
-import { Card } from '../common';
+import { RefreshCcw } from 'lucide-react';
+import { Card, EmptyState } from '../common';
 import { historyApi } from '../../api/history';
 import type { NewsIntelItem } from '../../types/analysis';
 
 interface ReportNewsProps {
-  recordId?: number;  // 分析历史记录主键 ID
+  recordId?: number;
   limit?: number;
 }
 
-/**
- * 资讯区组件 - 终端风格
- */
 export const ReportNews: React.FC<ReportNewsProps> = ({ recordId, limit = 20 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [items, setItems] = useState<NewsIntelItem[]>([]);
@@ -35,9 +33,8 @@ export const ReportNews: React.FC<ReportNewsProps> = ({ recordId, limit = 20 }) 
   useEffect(() => {
     setItems([]);
     setError(null);
-
     if (recordId) {
-      fetchNews();
+      void fetchNews();
     }
   }, [recordId, fetchNews]);
 
@@ -46,92 +43,61 @@ export const ReportNews: React.FC<ReportNewsProps> = ({ recordId, limit = 20 }) 
   }
 
   return (
-    <Card variant="bordered" padding="md">
-      <div className="flex items-center justify-between mb-3">
-        <div className="mb-3 flex items-baseline gap-2">
-          <span className="label-uppercase">NEWS FEED</span>
-          <h3 className="text-base font-semibold text-white">相关资讯</h3>
+    <Card variant="bordered" padding="lg">
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <div>
+          <div className="flex items-baseline gap-2">
+            <span className="label-uppercase">News Feed</span>
+            <h3 className="text-base font-semibold text-foreground">相关资讯</h3>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">自动拉取与本次历史报告相关的资讯内容。</p>
         </div>
-        <div className="flex items-center gap-2">
-          {isLoading && (
-            <div className="w-3.5 h-3.5 border-2 border-cyan/20 border-t-cyan rounded-full animate-spin" />
-          )}
-          <button
-            type="button"
-            onClick={fetchNews}
-            className="text-xs text-cyan hover:text-white transition-colors"
-          >
-            刷新
-          </button>
-        </div>
+        <button type="button" onClick={() => void fetchNews()} className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+          <RefreshCcw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          刷新
+        </button>
       </div>
 
-      {error && !isLoading && (
-        <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
-          <span>{error}</span>
-          <button
-            type="button"
-            onClick={fetchNews}
-            className="text-xs text-cyan hover:text-white transition-colors"
-          >
-            重试
-          </button>
+      {error && !isLoading ? (
+        <div className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
+      ) : null}
+
+      {isLoading && !error ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+          正在加载资讯...
         </div>
-      )}
+      ) : null}
 
-      {isLoading && !error && (
-        <div className="flex items-center gap-2 text-xs text-secondary">
-          <div className="w-4 h-4 border-2 border-cyan/20 border-t-cyan rounded-full animate-spin" />
-          加载资讯中...
-        </div>
-      )}
+      {!isLoading && !error && items.length === 0 ? (
+        <EmptyState title="暂无相关资讯" description="当前历史记录还没有关联到新闻资讯。" className="border-none bg-transparent px-0 py-8 shadow-none" />
+      ) : null}
 
-      {!isLoading && !error && items.length === 0 && (
-        <div className="text-xs text-muted">暂无相关资讯</div>
-      )}
-
-      {!isLoading && !error && items.length > 0 && (
-        <div className="space-y-2 text-left">
-          {items.map((item, index) => (
-            <div
-              key={`${item.title}-${index}`}
-              className="group p-3 rounded-lg bg-elevated/80 border border-white/5 hover:border-cyan/30 hover:bg-hover transition-colors"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0 text-left">
-                  <p className="text-sm text-white font-medium leading-snug text-left">
-                    {item.title}
-                  </p>
-                  {item.snippet && (
-                    <p className="text-xs text-secondary mt-1 text-left">
-                      {item.snippet}
-                    </p>
-                  )}
-                </div>
-                {item.url && (
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-cyan hover:text-white transition-colors inline-flex items-center gap-1 whitespace-nowrap"
-                  >
-                    跳转
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M14 3h7m0 0v7m0-7L10 14"
-                      />
-                    </svg>
-                  </a>
-                )}
+      <div className="space-y-3">
+        {items.map((item) => (
+          <article key={`${item.url}-${item.title}`} className="rounded-2xl border border-border bg-background p-4 transition-colors hover:bg-accent/40">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h4 className="text-sm font-semibold text-foreground">{item.title}</h4>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.snippet}</p>
               </div>
+              {item.url ? (
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+                >
+                  跳转
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 3h7m0 0v7m0-7L10 14" />
+                  </svg>
+                </a>
+              ) : null}
             </div>
-          ))}
-
-        </div>
-      )}
+          </article>
+        ))}
+      </div>
     </Card>
   );
 };

@@ -66,26 +66,87 @@ export function resolveDisplayStockName(stockCode: string, ...candidates: Array<
 
 export type TrendCategory = 'bullish' | 'bearish' | 'neutral' | 'unknown';
 
-const BULLISH_TOKENS = ['强烈看多', '强势多头', '弱势多头', '看多', '多头', '上涨', '反弹', '走强', '偏强'];
-const BEARISH_TOKENS = ['强烈看空', '强势空头', '弱势空头', '看空', '空头', '下跌', '回调', '走弱', '偏弱'];
-const NEUTRAL_TOKENS = ['震荡整理', '震荡', '中性', '观望', '盘整', '横盘', '整理'];
+const BULLISH_TOKENS = ['强烈看多', '强势多头', '多头排列', '弱势多头', '看多', '看涨', '多头', '上涨', '上行', '上攻', '反弹', '走强', '偏强', '短期向好', 'bullish', 'buy'];
+const BEARISH_TOKENS = ['强烈看空', '强势空头', '空头排列', '弱势空头', '看空', '看跌', '空头', '下跌', '下行', '下探', '回调', '走弱', '偏空', '偏弱', '短期走弱', 'bearish', 'sell'];
+const NEUTRAL_TOKENS = ['震荡整理', '震荡', '中性', '观望', '盘整', '横盘', '整理', 'wait', 'neutral'];
+
+const TREND_DISPLAY_MAP: Array<{ label: string; category: TrendCategory; tokens: string[] }> = [
+  { label: '强烈看多', category: 'bullish', tokens: ['强烈看多'] },
+  { label: '强势多头', category: 'bullish', tokens: ['强势多头'] },
+  { label: '多头排列 📈', category: 'bullish', tokens: ['多头排列'] },
+  { label: '弱势多头', category: 'bullish', tokens: ['弱势多头'] },
+  { label: '看多', category: 'bullish', tokens: ['看多', '看涨'] },
+  { label: '上涨', category: 'bullish', tokens: ['上涨', '上行', '上攻', '反弹', '走强', '短期向好'] },
+  { label: '强烈看空', category: 'bearish', tokens: ['强烈看空'] },
+  { label: '强势空头', category: 'bearish', tokens: ['强势空头'] },
+  { label: '空头排列 📉', category: 'bearish', tokens: ['空头排列'] },
+  { label: '弱势空头', category: 'bearish', tokens: ['弱势空头'] },
+  { label: '看空', category: 'bearish', tokens: ['看空', '看跌'] },
+  { label: '下行', category: 'bearish', tokens: ['下行', '下跌', '下探', '走弱', '短期走弱'] },
+  { label: '震荡整理 ↔️', category: 'neutral', tokens: ['震荡整理'] },
+  { label: '震荡', category: 'neutral', tokens: ['震荡'] },
+  { label: '中性', category: 'neutral', tokens: ['中性'] },
+  { label: '观望', category: 'neutral', tokens: ['观望'] },
+  { label: '盘整', category: 'neutral', tokens: ['盘整', '横盘', '整理'] },
+];
+
+function stripTrendDecorators(value: string): string {
+  let normalizedValue = value
+    .replaceAll('```json', '')
+    .replaceAll('```', '')
+    .replaceAll('**', '')
+    .replaceAll('__', '')
+    .replaceAll('📈', '')
+    .replaceAll('📉', '')
+    .replaceAll('↔️', '')
+    .trim();
+
+  normalizedValue = normalizedValue.replace(/^[\s\-*#>·•:：=【】()（）]+/u, '').trim();
+
+  let previousValue = '';
+  while (previousValue !== normalizedValue) {
+    previousValue = normalizedValue;
+    normalizedValue = normalizedValue
+      .replace(/^(趋势预测|趋势|预测|方向|trend_prediction|trend)\s*[:：=·•\-*\s]*/iu, '')
+      .trim();
+  }
+
+  return normalizedValue;
+}
+
+export function sanitizeTrendPrediction(value?: string | null): string {
+  if (!value) {
+    return '';
+  }
+
+  const cleanedValue = stripTrendDecorators(value);
+  if (!cleanedValue) {
+    return '';
+  }
+
+  const matchedDisplay = TREND_DISPLAY_MAP.find((item) => item.tokens.some((token) => cleanedValue.toLowerCase().includes(token.toLowerCase())));
+  return matchedDisplay?.label || cleanedValue;
+}
 
 export function normalizeTrendCategory(value?: string | null): TrendCategory {
   if (!value) {
     return 'unknown';
   }
 
-  const normalizedValue = value.replaceAll('📈', '').replaceAll('📉', '').replaceAll('↔️', '').trim();
+  const normalizedValue = stripTrendDecorators(value).toLowerCase();
+  if (!normalizedValue) {
+    return 'unknown';
+  }
 
-  if (BULLISH_TOKENS.some((token) => normalizedValue.includes(token))) {
+  if (BULLISH_TOKENS.some((token) => normalizedValue.includes(token.toLowerCase()))) {
     return 'bullish';
   }
 
-  if (BEARISH_TOKENS.some((token) => normalizedValue.includes(token))) {
+  if (BEARISH_TOKENS.some((token) => normalizedValue.includes(token.toLowerCase()))) {
     return 'bearish';
   }
 
-  if (NEUTRAL_TOKENS.some((token) => normalizedValue.includes(token))) {
+  if (NEUTRAL_TOKENS.some((token) => normalizedValue.includes(token.toLowerCase()))) {
     return 'neutral';
   }
 

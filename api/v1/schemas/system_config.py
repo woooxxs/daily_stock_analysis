@@ -51,6 +51,8 @@ class SystemConfigItem(BaseModel):
     key: str
     value: str
     raw_value_exists: bool
+    line_present: bool
+    is_commented: bool
     is_masked: bool
     schema_: Optional[SystemConfigFieldSchema] = Field(default=None, alias="schema")
 
@@ -69,6 +71,7 @@ class SystemConfigUpdateItem(BaseModel):
 
     key: str
     value: str
+    enabled: Optional[bool] = None
 
 
 class UpdateSystemConfigRequest(BaseModel):

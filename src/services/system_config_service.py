@@ -47,9 +47,9 @@ class SystemConfigService:
 
     def get_config(self, include_schema: bool = True, mask_token: str = "******") -> Dict[str, Any]:
         """Return current config values without server-side secret masking."""
-        config_map = self._manager.read_config_map()
+        config_entries = self._manager.read_config_entries()
         registered_keys = set(get_registered_field_keys())
-        all_keys = set(config_map.keys()) | registered_keys
+        all_keys = set(config_entries.keys()) | registered_keys
 
         category_orders = {
             item["category"]: item["display_order"]
@@ -57,18 +57,21 @@ class SystemConfigService:
         }
 
         schema_by_key: Dict[str, Dict[str, Any]] = {
-            key: get_field_definition(key, config_map.get(key, ""))
+            key: get_field_definition(key, (config_entries.get(key).value if config_entries.get(key) else ""))
             for key in all_keys
         }
 
         items: List[Dict[str, Any]] = []
         for key in all_keys:
-            raw_value = config_map.get(key, "")
+            entry = config_entries.get(key)
+            raw_value = entry.value if entry else ""
             field_schema = schema_by_key[key]
             item: Dict[str, Any] = {
                 "key": key,
                 "value": raw_value,
                 "raw_value_exists": bool(raw_value),
+                "line_present": entry is not None,
+                "is_commented": bool(entry.is_commented) if entry else False,
                 "is_masked": False,
             }
             if include_schema:
@@ -102,7 +105,7 @@ class SystemConfigService:
     def update(
         self,
         config_version: str,
-        items: Sequence[Dict[str, str]],
+        items: Sequence[Dict[str, Any]],
         mask_token: str = "******",
         reload_now: bool = True,
     ) -> Dict[str, Any]:
@@ -116,12 +119,12 @@ class SystemConfigService:
         if errors:
             raise ConfigValidationError(issues=errors)
 
-        updates: List[Tuple[str, str]] = []
+        updates: List[Tuple[str, str, Optional[bool]]] = []
         sensitive_keys: Set[str] = set()
         for item in items:
             key = item["key"].upper()
             value = item["value"]
-            updates.append((key, value))
+            updates.append((key, value, item.get("enabled")))
             field_schema = get_field_definition(key)
             if bool(field_schema.get("is_sensitive", False)):
                 sensitive_keys.add(key)
@@ -155,9 +158,10 @@ class SystemConfigService:
             "warnings": warnings,
         }
 
-    def _collect_issues(self, items: Sequence[Dict[str, str]], mask_token: str) -> List[Dict[str, Any]]:
+    def _collect_issues(self, items: Sequence[Dict[str, Any]], mask_token: str) -> List[Dict[str, Any]]:
         """Collect field-level and cross-field validation issues."""
         current_map = self._manager.read_config_map()
+        current_entries = self._manager.read_config_entries()
         effective_map = dict(current_map)
         issues: List[Dict[str, Any]] = []
         updated_map: Dict[str, str] = {}
@@ -165,10 +169,19 @@ class SystemConfigService:
         for item in items:
             key = item["key"].upper()
             value = item["value"]
+            current_entry = current_entries.get(key)
+            enabled = item.get("enabled")
+            if enabled is None:
+                enabled = False if current_entry and current_entry.is_commented else True
             field_schema = get_field_definition(key, value)
             is_sensitive = bool(field_schema.get("is_sensitive", False))
 
-            if is_sensitive and value == mask_token and current_map.get(key):
+            if is_sensitive and value == mask_token and current_entry and current_entry.value:
+                value = current_entry.value
+
+            if not enabled:
+                updated_map[key] = value
+                effective_map.pop(key, None)
                 continue
 
             updated_map[key] = value

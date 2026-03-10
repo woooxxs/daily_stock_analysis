@@ -1,80 +1,40 @@
 import type React from 'react';
+import { ListTodo } from 'lucide-react';
 import type { TaskInfo } from '../../types/analysis';
 
-/**
- * 任务项组件属性
- */
 interface TaskItemProps {
   task: TaskInfo;
 }
 
-/**
- * 单个任务项
- */
 const TaskItem: React.FC<TaskItemProps> = ({ task }) => {
   const isPending = task.status === 'pending';
   const isProcessing = task.status === 'processing';
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2 bg-elevated rounded-lg border border-white/5">
-      {/* 状态图标 */}
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2.5">
       <div className="shrink-0">
         {isProcessing ? (
-          // 加载动画
-          <svg className="w-4 h-4 text-cyan animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            />
+          <svg className="h-4 w-4 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
         ) : isPending ? (
-          // 等待图标
-          <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
+          <svg className="h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         ) : null}
       </div>
 
-      {/* 任务信息 */}
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-white truncate">
-            {task.stockName || task.stockCode}
-          </span>
-          <span className="text-xs text-muted">
-            {task.stockCode}
-          </span>
+          <span className="truncate text-sm font-semibold text-foreground">{task.stockName || task.stockCode}</span>
+          <span className="text-xs text-muted-foreground">{task.stockCode}</span>
         </div>
-        {task.message && (
-          <p className="text-xs text-secondary truncate mt-0.5">
-            {task.message}
-          </p>
-        )}
+        {task.message ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{task.message}</p> : null}
       </div>
 
-      {/* 状态标签 */}
       <div className="flex-shrink-0">
-        <span
-          className={`text-xs px-1.5 py-0.5 rounded ${
-            isProcessing
-              ? 'bg-cyan/20 text-cyan'
-              : 'bg-white/10 text-muted'
-          }`}
-        >
+        <span className={isProcessing ? 'rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-xs text-primary' : 'rounded-full border border-border bg-muted px-2 py-1 text-xs text-muted-foreground'}>
           {isProcessing ? '分析中' : '等待中'}
         </span>
       </div>
@@ -82,76 +42,64 @@ const TaskItem: React.FC<TaskItemProps> = ({ task }) => {
   );
 };
 
-/**
- * 任务面板属性
- */
 interface TaskPanelProps {
-  /** 任务列表 */
   tasks: TaskInfo[];
-  /** 是否显示 */
   visible?: boolean;
-  /** 标题 */
   title?: string;
-  /** 自定义类名 */
   className?: string;
 }
 
-/**
- * 任务面板组件
- * 显示进行中的分析任务列表
- */
 export const TaskPanel: React.FC<TaskPanelProps> = ({
   tasks,
   visible = true,
   title = '分析任务',
   className = '',
 }) => {
-  // 筛选活跃任务（pending 和 processing）
-  const activeTasks = tasks.filter(
-    (t) => t.status === 'pending' || t.status === 'processing'
-  );
+  const activeTasks = tasks.filter((task) => task.status === 'pending' || task.status === 'processing');
+  const pendingCount = activeTasks.filter((task) => task.status === 'pending').length;
+  const processingCount = activeTasks.filter((task) => task.status === 'processing').length;
 
-  // 无任务或不可见时不渲染
-  if (!visible || activeTasks.length === 0) {
+  if (!visible) {
     return null;
   }
 
-  const pendingCount = activeTasks.filter((t) => t.status === 'pending').length;
-  const processingCount = activeTasks.filter((t) => t.status === 'processing').length;
-
   return (
-    <div className={`bg-card rounded-xl border border-white/5 overflow-hidden ${className}`}>
-      {/* 标题栏 */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/5">
+    <div className={`overflow-hidden rounded-2xl border border-border bg-card ${className}`}>
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
+          <svg className="h-4 w-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          <span className="text-sm font-medium text-white">{title}</span>
+          <span className="text-sm font-semibold text-foreground">{title}</span>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted">
-          {processingCount > 0 && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {processingCount > 0 ? (
             <span className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-cyan rounded-full animate-pulse" />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
               {processingCount} 进行中
             </span>
-          )}
-          {pendingCount > 0 && (
-            <span>{pendingCount} 等待中</span>
-          )}
+          ) : null}
+          {pendingCount > 0 ? <span>{pendingCount} 等待中</span> : null}
+          {activeTasks.length === 0 ? <span>当前为空</span> : null}
         </div>
       </div>
 
-      {/* 任务列表 */}
-      <div className="p-2 space-y-2 max-h-64 overflow-y-auto">
-        {activeTasks.map((task) => (
-          <TaskItem key={task.taskId} task={task} />
-        ))}
+      <div className="max-h-64 overflow-y-auto p-3">
+        {activeTasks.length > 0 ? (
+          <div className="space-y-2">
+            {activeTasks.map((task) => (
+              <TaskItem key={task.taskId} task={task} />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-background/60 px-4 py-8 text-center">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+              <ListTodo className="h-5 w-5" />
+            </div>
+            <p className="text-sm font-medium text-foreground">当前没有进行中的任务</p>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">当你发起股票分析后，任务会在这里实时显示。</p>
+          </div>
+        )}
       </div>
     </div>
   );

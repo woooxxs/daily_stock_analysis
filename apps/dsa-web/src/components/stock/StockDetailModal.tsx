@@ -63,59 +63,63 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-[32px] border border-border bg-card shadow-2xl"
+        className="flex h-[88vh] w-[96vw] max-h-[960px] max-w-7xl flex-col overflow-hidden rounded-[32px] border border-border bg-card shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-border px-6 py-5 md:px-8">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Stock Detail</p>
-              <h2 className="mt-2 text-2xl font-semibold text-foreground">{displayName}</h2>
-              <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-                <span className="rounded-full border border-border bg-background px-3 py-1 font-mono text-muted-foreground">{normalizedCode}</span>
-                <span className="font-mono text-foreground">{currentPrice != null ? currentPrice.toFixed(2) : '--'}</span>
-                {changePercent != null ? <span className={`font-mono ${changeClass}`}>{hasPositiveMove ? '+' : ''}{changePercent.toFixed(2)}%</span> : null}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              aria-label="关闭弹窗"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+        <div className="border-b border-border px-5 py-4 md:px-6">
+          <div className="custom-scrollbar flex items-center gap-3 overflow-x-auto whitespace-nowrap">
+            <h2 className="shrink-0 text-lg font-semibold text-foreground md:text-xl">{displayName}</h2>
+            <span className="shrink-0 rounded-full border border-border bg-background px-3 py-1 text-xs font-mono text-muted-foreground">
+              {normalizedCode}
+            </span>
+            <span className={`shrink-0 text-sm font-semibold font-mono md:text-base ${changeClass}`}>
+              {currentPrice != null ? currentPrice.toFixed(2) : '--'}
+            </span>
+            {changePercent != null ? (
+              <span className={`shrink-0 text-sm font-semibold font-mono ${changeClass}`}>
+                {hasPositiveMove ? '+' : ''}
+                {changePercent.toFixed(2)}%
+              </span>
+            ) : null}
 
-          <div className="mt-5 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab('history')}
-              className={[
-                'inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors',
-                activeTab === 'history' ? 'border-primary/20 bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground',
-              ].join(' ')}
-            >
-              <FileText className="h-4 w-4" />
-              历史记录
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('ask')}
-              className={[
-                'inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors',
-                activeTab === 'ask' ? 'border-primary/20 bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground',
-              ].join(' ')}
-            >
-              <Bot className="h-4 w-4" />
-              问股
-            </button>
+            <div className="ml-auto flex items-center gap-2 pl-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('history')}
+                className={[
+                  'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
+                  activeTab === 'history' ? 'border-primary/20 bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground',
+                ].join(' ')}
+              >
+                <FileText className="h-4 w-4" />
+                历史记录
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('ask')}
+                className={[
+                  'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
+                  activeTab === 'ask' ? 'border-primary/20 bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground',
+                ].join(' ')}
+              >
+                <Bot className="h-4 w-4" />
+                问股
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                aria-label="关闭弹窗"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-8">
+        <div className="flex-1 min-h-0 overflow-hidden p-5 md:p-6">
           {activeTab === 'history' ? (
-            <StockHistoryPanel key={`history-${normalizedCode}`} stockCode={normalizedCode} fallbackName={displayName} listClassName="h-[62vh]" />
+            <StockHistoryPanel key={`history-${normalizedCode}`} stockCode={normalizedCode} fallbackName={displayName} listClassName="h-full" />
           ) : (
             <StockAskPanel key={`ask-${normalizedCode}-${recordId || 'none'}`} stockCode={normalizedCode} stockName={displayName} recordId={recordId} />
           )}

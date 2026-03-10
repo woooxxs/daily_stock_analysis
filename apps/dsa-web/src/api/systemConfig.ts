@@ -46,6 +46,7 @@ function toSnakeUpdatePayload(payload: UpdateSystemConfigRequest): Record<string
     items: payload.items.map((item) => ({
       key: item.key,
       value: item.value,
+      ...(item.enabled === undefined ? {} : { enabled: item.enabled }),
     })),
   };
 }
@@ -55,6 +56,7 @@ function toSnakeValidatePayload(payload: ValidateSystemConfigRequest): Record<st
     items: payload.items.map((item) => ({
       key: item.key,
       value: item.value,
+      ...(item.enabled === undefined ? {} : { enabled: item.enabled }),
     })),
   };
 }

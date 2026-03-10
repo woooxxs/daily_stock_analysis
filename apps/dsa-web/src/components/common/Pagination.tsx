@@ -1,4 +1,6 @@
 import type React from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '../../utils/cn';
 
 interface PageButtonProps {
   page: number | string;
@@ -12,7 +14,7 @@ const PageButton: React.FC<PageButtonProps> = ({ page, isActive, disabled, onCli
   const isEllipsis = page === '...';
 
   if (isEllipsis) {
-    return <span className="px-3 py-2 text-muted">...</span>;
+    return <span className="px-3 py-2 text-sm text-muted-foreground">...</span>;
   }
 
   return (
@@ -20,13 +22,13 @@ const PageButton: React.FC<PageButtonProps> = ({ page, isActive, disabled, onCli
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`
-        min-w-[40px] h-10 px-3 rounded-lg font-medium
-        transition-all duration-200
-        hover:bg-hover hover:text-white border border-white/5
-        ${isActive ? 'bg-cyan text-muted' : 'bg-elevated text-secondary'}
-        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-      `}
+      className={cn(
+        'inline-flex h-10 min-w-[2.5rem] items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors',
+        isActive
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground',
+        disabled && 'cursor-not-allowed opacity-50',
+      )}
     >
       {children || page}
     </button>
@@ -35,33 +37,28 @@ const PageButton: React.FC<PageButtonProps> = ({ page, isActive, disabled, onCli
 
 interface PaginationProps {
   currentPage: number;
-  totalPages: number;
+  totalItems: number;
+  pageSize: number;
   onPageChange: (page: number) => void;
   className?: string;
 }
 
-/**
- * 分页组件 - 终端风格
- */
 export const Pagination: React.FC<PaginationProps> = ({
   currentPage,
-  totalPages,
+  totalItems,
+  pageSize,
   onPageChange,
   className = '',
 }) => {
+  const totalPages = Math.ceil(totalItems / pageSize);
   if (totalPages <= 1) return null;
 
-  // 生成页码数组
   const getPageNumbers = (): (number | string)[] => {
     const pages: (number | string)[] = [];
     const delta = 2;
 
-    for (let i = 1; i <= totalPages; i++) {
-      if (
-        i === 1 ||
-        i === totalPages ||
-        (i >= currentPage - delta && i <= currentPage + delta)
-      ) {
+    for (let i = 1; i <= totalPages; i += 1) {
+      if (i === 1 || i === totalPages || (i >= currentPage - delta && i <= currentPage + delta)) {
         pages.push(i);
       } else if (pages[pages.length - 1] !== '...') {
         pages.push('...');
@@ -72,19 +69,11 @@ export const Pagination: React.FC<PaginationProps> = ({
   };
 
   return (
-    <div className={`flex items-center justify-center gap-2 ${className}`}>
-      {/* 上一页 */}
-      <PageButton
-        page="prev"
-        disabled={currentPage === 1}
-        onClick={() => onPageChange(currentPage - 1)}
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
+    <div className={cn('flex flex-wrap items-center justify-center gap-2', className)}>
+      <PageButton page="prev" disabled={currentPage === 1} onClick={() => onPageChange(currentPage - 1)}>
+        <ChevronLeft className="h-4 w-4" />
       </PageButton>
 
-      {/* 页码 */}
       {getPageNumbers().map((page, index) => (
         <PageButton
           key={`${page}-${index}`}
@@ -94,15 +83,8 @@ export const Pagination: React.FC<PaginationProps> = ({
         />
       ))}
 
-      {/* 下一页 */}
-      <PageButton
-        page="next"
-        disabled={currentPage === totalPages}
-        onClick={() => onPageChange(currentPage + 1)}
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
+      <PageButton page="next" disabled={currentPage === totalPages} onClick={() => onPageChange(currentPage + 1)}>
+        <ChevronRight className="h-4 w-4" />
       </PageButton>
     </div>
   );

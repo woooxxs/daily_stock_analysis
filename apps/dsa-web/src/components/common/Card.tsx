@@ -1,4 +1,5 @@
 import type React from 'react';
+import { cn } from '../../utils/cn';
 
 interface CardProps {
   title?: string;
@@ -10,10 +11,6 @@ interface CardProps {
   padding?: 'none' | 'sm' | 'md' | 'lg';
 }
 
-/**
- * 终端风格卡片组件
- * 支持渐变边框、悬浮效果
- */
 export const Card: React.FC<CardProps> = ({
   title,
   subtitle,
@@ -25,65 +22,23 @@ export const Card: React.FC<CardProps> = ({
 }) => {
   const paddingStyles = {
     none: '',
-    sm: 'p-3',
-    md: 'p-4',
-    lg: 'p-5',
+    sm: 'p-4',
+    md: 'p-5',
+    lg: 'p-6',
   };
-
-  const baseStyles = 'rounded-2xl';
 
   const variantStyles = {
-    default: 'terminal-card',
-    bordered: 'terminal-card terminal-card-hover',
-    gradient: 'gradient-border-card',
+    default: 'border border-border bg-card shadow-sm',
+    bordered: 'border border-border bg-card shadow-sm',
+    gradient: 'border border-primary/20 bg-card shadow-sm ring-1 ring-primary/10',
   };
 
-  const hoverStyles = hoverable
-    ? 'terminal-card-hover cursor-pointer'
-    : '';
-
-  if (variant === 'gradient') {
-    return (
-      <div className={`${variantStyles.gradient} ${className}`}>
-        <div className={`gradient-border-card-inner ${paddingStyles[padding]}`}>
-          {(title || subtitle) && (
-            <div className="mb-3">
-              {subtitle && (
-                <span className="label-uppercase">{subtitle}</span>
-              )}
-              {title && (
-                <h3 className="text-lg font-semibold text-white mt-1">
-                  {title}
-                </h3>
-              )}
-            </div>
-          )}
-          {children}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div
-      className={`
-        ${baseStyles}
-        ${variantStyles[variant]}
-        ${hoverStyles}
-        ${paddingStyles[padding]}
-        ${className}
-      `}
-    >
+    <div className={cn('rounded-2xl', variantStyles[variant], hoverable && 'transition-all hover:-translate-y-0.5 hover:shadow-md', paddingStyles[padding], className)}>
       {(title || subtitle) && (
         <div className="mb-3">
-          {subtitle && (
-            <span className="label-uppercase">{subtitle}</span>
-          )}
-          {title && (
-            <h3 className="text-lg font-semibold text-white mt-1">
-              {title}
-            </h3>
-          )}
+          {subtitle ? <span className="label-uppercase">{subtitle}</span> : null}
+          {title ? <h3 className="mt-1 text-lg font-semibold text-foreground">{title}</h3> : null}
         </div>
       )}
       {children}

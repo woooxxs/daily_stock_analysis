@@ -2,10 +2,8 @@ import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
-  ChevronRight,
-  Clock3,
   LayoutDashboard,
-  Loader2,
+  ListTodo,
   PlayCircle,
   Plus,
   RefreshCcw,
@@ -26,6 +24,7 @@ import {
   Input,
   PageHeader,
   SectionCard,
+  Select,
   ToastViewport,
   type ToastMessage,
 } from '../components/common';
@@ -35,7 +34,40 @@ import { StockDetailModal, type StockDetailTab } from '../components/stock/Stock
 import { ImageStockExtractor } from '../components/settings';
 import { useStockPool, useSystemConfig, useTaskStream } from '../hooks';
 
+
 const historyPageSize = 100;
+const AUTO_REFRESH_PRESET_STORAGE_KEY = 'home_watchlist_auto_refresh_preset';
+const AUTO_REFRESH_CUSTOM_SECONDS_STORAGE_KEY = 'home_watchlist_auto_refresh_custom_seconds';
+const AUTO_REFRESH_PRESET_OPTIONS = [
+  { value: 'off', label: '关闭' },
+  { value: '10', label: '10 秒' },
+  { value: '30', label: '30 秒' },
+  { value: '60', label: '60 秒' },
+  { value: '300', label: '300 秒' },
+  { value: '600', label: '600 秒' },
+  { value: 'custom', label: '自定义' },
+] as const;
+
+type AutoRefreshPreset = (typeof AUTO_REFRESH_PRESET_OPTIONS)[number]['value'];
+
+function getInitialAutoRefreshPreset(): AutoRefreshPreset {
+  if (typeof window === 'undefined') {
+    return 'off';
+  }
+
+  const savedPreset = window.localStorage.getItem(AUTO_REFRESH_PRESET_STORAGE_KEY);
+  return AUTO_REFRESH_PRESET_OPTIONS.some((option) => option.value === savedPreset)
+    ? (savedPreset as AutoRefreshPreset)
+    : 'off';
+}
+
+function getInitialCustomAutoRefreshSeconds(): string {
+  if (typeof window === 'undefined') {
+    return '120';
+  }
+
+  return window.localStorage.getItem(AUTO_REFRESH_CUSTOM_SECONDS_STORAGE_KEY) || '120';
+}
 
 type ActiveStockDetail = {
   code: string;
@@ -62,11 +94,29 @@ const HomePage: React.FC = () => {
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [activeTasks, setActiveTasks] = useState<TaskInfo[]>([]);
   const [activeStockDetail, setActiveStockDetail] = useState<ActiveStockDetail | null>(null);
+  const [autoRefreshPreset, setAutoRefreshPreset] = useState<AutoRefreshPreset>(() => getInitialAutoRefreshPreset());
+  const [customAutoRefreshSeconds, setCustomAutoRefreshSeconds] = useState(() => getInitialCustomAutoRefreshSeconds());
 
   const activeTaskCount = useMemo(
     () => activeTasks.filter((task) => task.status === 'pending' || task.status === 'processing').length,
     [activeTasks],
   );
+
+  const resolvedAutoRefreshSeconds = useMemo(() => {
+    if (autoRefreshPreset === 'off') {
+      return 0;
+    }
+
+    if (autoRefreshPreset === 'custom') {
+      const parsedValue = Number.parseInt(customAutoRefreshSeconds, 10);
+      return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 0;
+    }
+
+    return Number.parseInt(autoRefreshPreset, 10);
+  }, [autoRefreshPreset, customAutoRefreshSeconds]);
+
+  const stockCodes = stockPool.codes;
+  const refreshStockQuotes = stockPool.refreshQuotes;
 
   const taskMenuRef = useRef<HTMLDivElement | null>(null);
   const batchAnalyzeConfirmRef = useRef<HTMLDivElement | null>(null);
@@ -99,6 +149,22 @@ const HomePage: React.FC = () => {
       Object.values(timers).forEach((timerId) => window.clearTimeout(timerId));
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(AUTO_REFRESH_PRESET_STORAGE_KEY, autoRefreshPreset);
+  }, [autoRefreshPreset]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(AUTO_REFRESH_CUSTOM_SECONDS_STORAGE_KEY, customAutoRefreshSeconds);
+  }, [customAutoRefreshSeconds]);
 
   useEffect(() => {
     if (!isTaskMenuOpen) {
@@ -292,9 +358,8 @@ const HomePage: React.FC = () => {
       stockPool.items.map((item) => {
         const latestHistory = latestHistoryByCode.get(item.code);
         const liveQuote = item.quote?.error ? undefined : item.quote;
-        const advice = latestHistory?.operationAdvice || '';
         const isPending = activeTaskCodeSet.has(item.code) || !latestHistory?.createdAt;
-        const statusLabel = isPending ? '待更新' : advice || '已分析';
+        const statusLabel = isPending ? '待更新' : '已分析';
         const statusTone = isPending ? ('default' as const) : ('active' as const);
 
         return {
@@ -355,21 +420,51 @@ const HomePage: React.FC = () => {
     [pushToast, setLoading, setStoreError, submitAnalysisRequest],
   );
 
-  const handleRefreshRealtimePrices = useCallback(async () => {
-    if (stockPool.codes.length === 0) {
-      pushToast('info', '当前没有可刷新的自选股。');
+  const handleRefreshRealtimePrices = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
+
+      if (stockCodes.length === 0) {
+        if (!silent) {
+          pushToast('info', '当前没有可刷新的自选股。');
+        }
+        return;
+      }
+
+      try {
+        await refreshStockQuotes(stockCodes);
+        if (!silent) {
+          pushToast('success', '实时价格已刷新。');
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '刷新股价失败';
+        if (!silent) {
+          pushToast('error', message);
+        }
+        setStoreError(message);
+        if (silent) {
+          console.warn('Auto refresh quotes failed:', message);
+        }
+      }
+    },
+    [pushToast, refreshStockQuotes, setStoreError, stockCodes],
+  );
+
+  useEffect(() => {
+    if (resolvedAutoRefreshSeconds <= 0 || stockCodes.length === 0) {
       return;
     }
 
-    try {
-      await stockPool.refreshQuotes(stockPool.codes);
-      pushToast('success', '实时价格已刷新。');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '刷新实时价格失败';
-      pushToast('error', message);
-      setStoreError(message);
-    }
-  }, [pushToast, setStoreError, stockPool]);
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+
+      void handleRefreshRealtimePrices({ silent: true });
+    }, resolvedAutoRefreshSeconds * 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [handleRefreshRealtimePrices, resolvedAutoRefreshSeconds, stockCodes.length]);
 
   const handleReanalyzeAllStocks = useCallback(async () => {
     if (stockPool.codes.length === 0) {
@@ -486,6 +581,11 @@ const HomePage: React.FC = () => {
     [handleOpenStockDetail],
   );
 
+  const handleCustomAutoRefreshSecondsChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.value.replace(/[^\d]/g, '').slice(0, 5);
+    setCustomAutoRefreshSeconds(nextValue);
+  }, []);
+
   useEffect(() => {
     const rawStockCode = searchParams.get('stock');
     if (!rawStockCode) {
@@ -520,21 +620,23 @@ const HomePage: React.FC = () => {
         actions={(
           <>
             <div ref={taskMenuRef} className="relative">
-              <Button
+              <button
                 type="button"
-                variant="secondary"
                 onClick={() => setIsTaskMenuOpen((previous) => !previous)}
-                className={activeTaskCount > 0 ? 'border-primary/20 text-primary' : ''}
+                className={[
+                  'relative inline-flex h-10 w-10 items-center justify-center rounded-xl border bg-card shadow-sm transition-colors',
+                  isTaskMenuOpen ? 'border-primary/20 bg-primary/5 text-primary' : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
+                ].join(' ')}
+                title={activeTaskCount > 0 ? `进行中的任务（${activeTaskCount}）` : '进行中的任务'}
+                aria-label={activeTaskCount > 0 ? `进行中的任务，当前 ${activeTaskCount} 个` : '进行中的任务'}
               >
+                <ListTodo className="h-4 w-4" />
                 {activeTaskCount > 0 ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Clock3 className="h-4 w-4 text-muted-foreground" />
-                )}
-                进行中的任务
-                <span className={`rounded-full px-2 py-0.5 text-xs shadow-sm ${activeTaskCount > 0 ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{activeTaskCount}</span>
-                <ChevronRight className={`h-4 w-4 transition-transform ${isTaskMenuOpen ? 'rotate-90' : ''}`} />
-              </Button>
+                  <span className="absolute -right-1.5 -top-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground shadow-sm">
+                    {activeTaskCount}
+                  </span>
+                ) : null}
+              </button>
               {isTaskMenuOpen ? (
                 <div className="absolute right-0 top-full z-30 mt-3 w-[360px] max-w-[calc(100vw-2rem)]">
                   <TaskPanel tasks={activeTasks} title="进行中的任务" className="shadow-2xl" />
@@ -557,6 +659,28 @@ const HomePage: React.FC = () => {
         description="聚合查看自选股的实时行情、趋势判断、操作建议与历史复盘，并支持单股追问。"
         actions={
           <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 shadow-sm">
+              <span className="text-sm font-medium text-foreground">自动刷新</span>
+              <Select
+                value={autoRefreshPreset}
+                onChange={(value) => setAutoRefreshPreset(value as AutoRefreshPreset)}
+                options={AUTO_REFRESH_PRESET_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+                className="w-[116px]"
+              />
+              {autoRefreshPreset === 'custom' ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={customAutoRefreshSeconds}
+                    onChange={handleCustomAutoRefreshSecondsChange}
+                    placeholder="秒数"
+                    className="h-10 w-20 rounded-xl border border-input bg-background px-3 text-sm text-foreground shadow-sm transition-all placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-4 focus:ring-primary/10"
+                  />
+                  <span className="text-sm text-muted-foreground">秒</span>
+                </div>
+              ) : null}
+            </div>
             <Button
               type="button"
               variant="secondary"
@@ -564,7 +688,7 @@ const HomePage: React.FC = () => {
               disabled={stockPool.codes.length === 0 || stockPool.isRefreshingQuotes}
             >
               <RefreshCcw className={`h-4 w-4 ${stockPool.isRefreshingQuotes ? 'animate-spin' : ''}`} />
-              刷新实时价格
+              刷新股价
             </Button>
             <Button
               type="button"
@@ -573,7 +697,7 @@ const HomePage: React.FC = () => {
               isLoading={isSubmittingBatchAnalyze}
             >
               <PlayCircle className="h-4 w-4" />
-              一键全部重新分析
+              全量重析
             </Button>
           </div>
         }

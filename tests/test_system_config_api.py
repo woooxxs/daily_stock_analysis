@@ -25,6 +25,7 @@ class SystemConfigApiTestCase(unittest.TestCase):
                 [
                     "STOCK_LIST=600519,000001",
                     "GEMINI_API_KEY=secret-key-value",
+                    "# WECHAT_WEBHOOK_URL=https://example.com/webhook",
                     "SCHEDULE_TIME=18:00",
                     "LOG_LEVEL=INFO",
                     "ADMIN_AUTH_ENABLED=false",
@@ -58,6 +59,16 @@ class SystemConfigApiTestCase(unittest.TestCase):
         self.assertEqual(item_map["GEMINI_API_KEY"]["value"], "secret-key-value")
         self.assertFalse(item_map["GEMINI_API_KEY"]["is_masked"])
 
+    def test_get_config_returns_comment_metadata(self) -> None:
+        response = self.client.get("/api/v1/system/config")
+        self.assertEqual(response.status_code, 200)
+
+        payload = response.json()
+        item_map = {item["key"]: item for item in payload["items"]}
+        self.assertTrue(item_map["WECHAT_WEBHOOK_URL"]["line_present"])
+        self.assertTrue(item_map["WECHAT_WEBHOOK_URL"]["is_commented"])
+        self.assertEqual(item_map["WECHAT_WEBHOOK_URL"]["value"], "https://example.com/webhook")
+
     def test_put_config_updates_secret_and_plain_field(self) -> None:
         current = self.client.get("/api/v1/system/config").json()
 
@@ -81,6 +92,24 @@ class SystemConfigApiTestCase(unittest.TestCase):
         env_content = self.env_path.read_text(encoding="utf-8")
         self.assertIn("STOCK_LIST=600519,300750", env_content)
         self.assertIn("GEMINI_API_KEY=new-secret-value", env_content)
+
+    def test_put_config_can_comment_secret_value(self) -> None:
+        current = self.client.get("/api/v1/system/config").json()
+        response = self.client.put(
+            "/api/v1/system/config",
+            json={
+                "config_version": current["config_version"],
+                "mask_token": "******",
+                "reload_now": False,
+                "items": [
+                    {"key": "GEMINI_API_KEY", "value": "******", "enabled": False},
+                ],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        env_content = self.env_path.read_text(encoding="utf-8")
+        self.assertIn("# GEMINI_API_KEY=secret-key-value", env_content)
 
     def test_put_config_returns_conflict_when_version_is_stale(self) -> None:
         response = self.client.put(

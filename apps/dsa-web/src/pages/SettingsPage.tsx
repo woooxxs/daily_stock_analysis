@@ -1,8 +1,12 @@
 import type React from 'react';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BellRing,
+  Bot,
   Cpu,
+  Database,
+  FlaskConical,
+  Globe,
   RefreshCcw,
   RotateCcw,
   Save,
@@ -10,7 +14,6 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
-  WandSparkles,
 } from 'lucide-react';
 import { useAuth, useSystemConfig } from '../hooks';
 import {
@@ -26,100 +29,163 @@ import {
 import {
   AuthManagementCard,
   ChangePasswordCard,
+  DataSourceManager,
   LLMChannelEditor,
   NotificationChannelManager,
   SettingsField,
   SettingsLoading,
 } from '../components/settings';
-import { getCategoryDescriptionZh, getCategoryTitleZh } from '../utils/systemConfigI18n';
-import type { SystemConfigCategory, SystemConfigItem } from '../types/systemConfig';
+import type { SystemConfigItem } from '../types/systemConfig';
 import { cn } from '../utils/cn';
 
-const categoryMeta: Record<SystemConfigCategory, { icon: React.ComponentType<{ className?: string; size?: number }> }> = {
-  base: { icon: SlidersHorizontal },
-  data_source: { icon: SlidersHorizontal },
-  ai_model: { icon: Cpu },
-  notification: { icon: BellRing },
-  system: { icon: ShieldCheck },
-  agent: { icon: Settings2 },
-  backtest: { icon: Settings2 },
-  uncategorized: { icon: Settings2 },
+type SettingsSectionId =
+  | 'ai-model'
+  | 'data-source'
+  | 'proxy'
+  | 'notification'
+  | 'website'
+  | 'backtest'
+  | 'agent'
+  | 'security'
+  | 'schedule'
+  | 'other';
+
+type SettingsSection = {
+  id: SettingsSectionId;
+  title: string;
+  icon: React.ComponentType<{ className?: string; size?: number }>;
+  count: number;
 };
 
-const visibleCategoryOrder: SystemConfigCategory[] = ['base', 'data_source', 'ai_model', 'notification', 'system'];
-
-const systemVisibleKeys = new Set([
+const STOCK_LIST_HINT = '自选股列表请到首页工作台维护。';
+const STOCK_LIST_KEYS = new Set(['STOCK_LIST']);
+const VISION_KEYS = new Set(['VISION_MODEL', 'VISION_PROVIDER_PRIORITY', 'OPENAI_VISION_MODEL']);
+const DATA_SOURCE_MANAGER_KEYS = new Set([
+  'TUSHARE_TOKEN',
+  'TAVILY_API_KEYS',
+  'SERPAPI_API_KEYS',
+  'BRAVE_API_KEYS',
+  'BOCHA_API_KEYS',
+  'ENABLE_EASTMONEY_PATCH',
+  'PYTDX_HOST',
+  'PYTDX_PORT',
+  'PYTDX_SERVERS',
+]);
+const DATA_SOURCE_PRIORITY_KEYS = new Set([
+  'TUSHARE_PRIORITY',
+  'AKSHARE_PRIORITY',
+  'EFINANCE_PRIORITY',
+  'PYTDX_PRIORITY',
+  'BAOSTOCK_PRIORITY',
+  'YFINANCE_PRIORITY',
+  'REALTIME_SOURCE_PRIORITY',
+]);
+const DATA_SOURCE_CONFIG_KEYS = new Set([
+  'ENABLE_REALTIME_TECHNICAL_INDICATORS',
+  'ENABLE_REALTIME_QUOTE',
+  'ENABLE_CHIP_DISTRIBUTION',
+  'MAX_WORKERS',
+  'ANALYSIS_DELAY',
+  'NEWS_MAX_AGE_DAYS',
+  'BIAS_THRESHOLD',
+]);
+const PROXY_KEYS = new Set(['USE_PROXY', 'PROXY_HOST', 'PROXY_PORT', 'HTTP_PROXY']);
+const SCHEDULE_KEYS = new Set([
   'SCHEDULE_ENABLED',
   'SCHEDULE_TIME',
-  'RUN_IMMEDIATELY',
   'SCHEDULE_RUN_IMMEDIATELY',
+  'RUN_IMMEDIATELY',
   'TRADING_DAY_CHECK_ENABLED',
   'MARKET_REVIEW_ENABLED',
   'MARKET_REVIEW_REGION',
-  'ADMIN_SESSION_MAX_AGE_HOURS',
-  'ANALYSIS_DELAY',
-  'DATABASE_PATH',
+]);
+const SECURITY_FIELD_KEYS = new Set(['ADMIN_SESSION_MAX_AGE_HOURS']);
+const BACKTEST_SETTING_KEYS = new Set([
+  'BACKTEST_ENABLED',
+  'BACKTEST_EVAL_WINDOW_DAYS',
+  'BACKTEST_MIN_AGE_DAYS',
+  'BACKTEST_ENGINE_VERSION',
+  'BACKTEST_NEUTRAL_BAND_PCT',
+]);
+const AGENT_SETTING_KEYS = new Set([
+  'AGENT_MODE',
+  'AGENT_MAX_STEPS',
+  'AGENT_SKILLS',
+  'AGENT_STRATEGY_DIR',
+]);
+const WEBSITE_SETTING_KEYS = new Set([
   'WEBUI_ENABLED',
   'WEBUI_HOST',
+  'API_PORT',
   'WEBUI_PORT',
   'WEBUI_AUTO_BUILD',
   'TRUST_X_FORWARDED_FOR',
   'LOG_DIR',
   'LOG_LEVEL',
-  'MAX_WORKERS',
+  'DEBUG',
+  'DATABASE_PATH',
 ]);
+const NOTIFICATION_CONFIG_KEYS = new Set([
+  'REPORT_SUMMARY_ONLY',
+  'SINGLE_STOCK_NOTIFY',
+  'REPORT_TYPE',
+  'MERGE_EMAIL_NOTIFICATION',
+]);
+const HIDDEN_GENERIC_KEYS = new Set([
+  'ADMIN_AUTH_ENABLED',
+  'LLM_MODEL',
+  'LLM_BACKUP_MODEL',
+  'LITELLM_CONFIG',
+  'STOCK_LIST',
+  'GPG_KEY',
+  'JWT_DEVICE_ID',
+  'JWT_PRIVATE_KEY',
+  'LANG',
+  'PATH',
+  'PYTHON_SHA256',
+  'PYTHON_VERSION',
+  'PYTHONUNBUFFERED',
+  'WEB_ADMIN_PASSWORD_HASH',
+  'WEB_ADMIN_USERNAME',
+  'TZ',
+]);
+const LLM_CHANNEL_KEY_RE = /^LLM_[A-Z0-9]+_(BASE_URL|API_KEY|API_KEYS|MODELS|EXTRA_HEADERS)$/;
+const NOTIFICATION_KEY_RE = /^(WECHAT_|FEISHU_|TELEGRAM_|EMAIL_|PUSHPLUS_|PUSHOVER_|CUSTOM_WEBHOOK_|WEBHOOK_|DISCORD_|SERVERCHAN3_|DINGTALK_)/;
 
-const dataSourceModules = [
-  {
-    title: '行情接口',
-    description: '统一管理 Tushare、AkShare、EFinance、Pytdx、Baostock、YFinance 的优先级与盘中分析开关。',
-    keys: ['TUSHARE_TOKEN', 'TUSHARE_PRIORITY', 'AKSHARE_PRIORITY', 'EFINANCE_PRIORITY', 'PYTDX_PRIORITY', 'BAOSTOCK_PRIORITY', 'YFINANCE_PRIORITY', 'REALTIME_SOURCE_PRIORITY', 'ENABLE_REALTIME_QUOTE', 'ENABLE_REALTIME_TECHNICAL_INDICATORS', 'ENABLE_CHIP_DISTRIBUTION', 'BIAS_THRESHOLD'],
-  },
-  {
-    title: '新闻 / 联网检索',
-    description: '配置 Tavily、SerpAPI、Brave、Bocha 等联网搜索能力，控制新闻抓取的上下文质量与时效。',
-    keys: ['TAVILY_API_KEYS', 'SERPAPI_API_KEYS', 'BRAVE_API_KEYS', 'BOCHA_API_KEYS', 'NEWS_MAX_AGE_DAYS'],
-  },
-  {
-    title: '图片识股',
-    description: '配置视觉模型与供应商顺序，决定“从图片提取股票”优先调用哪个 Vision 能力。',
-    keys: ['VISION_MODEL', 'VISION_PROVIDER_PRIORITY', 'OPENAI_VISION_MODEL'],
-  },
-  {
-    title: '抓取兼容 / 代理',
-    description: '管理通达信服务地址、网络代理和抓取兼容补丁，适合需要稳定数据抓取的部署环境。',
-    keys: ['PYTDX_HOST', 'PYTDX_PORT', 'PYTDX_SERVERS', 'USE_PROXY', 'PROXY_HOST', 'PROXY_PORT', 'ENABLE_EASTMONEY_PATCH'],
-  },
-];
+function matchesAiManagedKey(key: string): boolean {
+  return key === 'LLM_CHANNELS'
+    || key === 'LITELLM_MODEL'
+    || key === 'LITELLM_FALLBACK_MODELS'
+    || LLM_CHANNEL_KEY_RE.test(key);
+}
 
-const homepageManagedKeys = new Set(['STOCK_LIST']);
+function matchesNotificationManagedKey(key: string): boolean {
+  return NOTIFICATION_KEY_RE.test(key);
+}
 
-const managedFieldHints: Partial<Record<string, string>> = {
-  STOCK_LIST: '自选股列表已迁移到选股工作台维护，请前往首页的选股工作台进行添加、删除和刷新。',
-};
-
-function filterVisibleItems(category: SystemConfigCategory, items: SystemConfigItem[]): SystemConfigItem[] {
-  const llmChannelKeyRe = /^LLM_[A-Z0-9]+_(BASE_URL|API_KEY|API_KEYS|MODELS|EXTRA_HEADERS)$/;
-
-  if (category === 'ai_model') {
-    return items.filter((item) => !llmChannelKeyRe.test(item.key) && item.key !== 'LLM_MODEL' && item.key !== 'LLM_BACKUP_MODEL');
-  }
-
-  if (category === 'system') {
-    return items.filter((item) => systemVisibleKeys.has(item.key));
-  }
-
-  return items;
+function renderFieldList(items: SystemConfigItem[], issueByKey: Record<string, unknown[]>, isSaving: boolean, onChange: (key: string, value: string) => void) {
+  return (
+    <div className="space-y-3">
+      {items.map((item) => (
+        <SettingsField
+          key={item.key}
+          item={item}
+          value={item.value}
+          disabled={isSaving || STOCK_LIST_KEYS.has(item.key)}
+          managedHint={STOCK_LIST_KEYS.has(item.key) ? STOCK_LIST_HINT : undefined}
+          onChange={onChange}
+          issues={(issueByKey[item.key] || []) as never[]}
+        />
+      ))}
+    </div>
+  );
 }
 
 const SettingsPage: React.FC = () => {
   const { authEnabled, passwordChangeable } = useAuth();
   const {
-    categories,
-    itemsByCategory,
+    items,
     issueByKey,
-    activeCategory,
-    setActiveCategory,
     hasDirty,
     dirtyCount,
     toast,
@@ -134,9 +200,11 @@ const SettingsPage: React.FC = () => {
     save,
     resetDraft,
     setDraftValue,
+    setDraftItemEnabled,
     configVersion,
     maskToken,
   } = useSystemConfig();
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>('ai-model');
 
   useEffect(() => {
     void load();
@@ -146,65 +214,165 @@ const SettingsPage: React.FC = () => {
     if (!toast) {
       return;
     }
-
-    const timer = window.setTimeout(() => {
-      clearToast();
-    }, 3200);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
+    const timer = window.setTimeout(() => clearToast(), 3200);
+    return () => window.clearTimeout(timer);
   }, [clearToast, toast]);
 
-  const visibleCategories = useMemo(
-    () => categories.filter((category) => visibleCategoryOrder.includes(category.category)),
-    [categories],
-  );
-
-  const rawActiveItems = itemsByCategory[activeCategory] || [];
-  const activeItems = filterVisibleItems(activeCategory as SystemConfigCategory, rawActiveItems);
-
-  const visibleCountByCategory = useMemo(() => {
-    const next: Partial<Record<SystemConfigCategory, number>> = {};
-
-    visibleCategories.forEach((category) => {
-      next[category.category] = filterVisibleItems(category.category, itemsByCategory[category.category] || []).length;
+  const aiItems = useMemo(() => items.filter((item) => matchesAiManagedKey(item.key) || item.schema?.category === 'ai_model'), [items]);
+  const visionItems = useMemo(() => items.filter((item) => VISION_KEYS.has(item.key)), [items]);
+  const dataSourceItems = useMemo(() => items.filter((item) => DATA_SOURCE_MANAGER_KEYS.has(item.key)), [items]);
+  const dataSourcePriorityItems = useMemo(() => items.filter((item) => DATA_SOURCE_PRIORITY_KEYS.has(item.key)), [items]);
+  const dataSourceConfigItems = useMemo(() => items.filter((item) => DATA_SOURCE_CONFIG_KEYS.has(item.key)), [items]);
+  const proxyItems = useMemo(() => {
+    const entries = items.filter((item) => PROXY_KEYS.has(item.key));
+    return entries.sort((left, right) => {
+      if (left.key === 'USE_PROXY') return -1;
+      if (right.key === 'USE_PROXY') return 1;
+      if (left.key === 'HTTP_PROXY') return 1;
+      if (right.key === 'HTTP_PROXY') return -1;
+      return left.key.localeCompare(right.key);
     });
+  }, [items]);
+  const notificationItems = useMemo(() => items.filter((item) => matchesNotificationManagedKey(item.key)), [items]);
+  const notificationConfigItems = useMemo(() => items.filter((item) => NOTIFICATION_CONFIG_KEYS.has(item.key)), [items]);
+  const websiteItems = useMemo(() => items.filter((item) => WEBSITE_SETTING_KEYS.has(item.key)), [items]);
+  const backtestItems = useMemo(() => items.filter((item) => BACKTEST_SETTING_KEYS.has(item.key)), [items]);
+  const agentItems = useMemo(() => items.filter((item) => AGENT_SETTING_KEYS.has(item.key)), [items]);
+  const securityFieldItems = useMemo(() => items.filter((item) => SECURITY_FIELD_KEYS.has(item.key)), [items]);
+  const scheduleItems = useMemo(() => items.filter((item) => SCHEDULE_KEYS.has(item.key)), [items]);
 
+  const handledKeys = useMemo(() => {
+    const next = new Set<string>();
+    [...aiItems, ...visionItems, ...dataSourceItems, ...dataSourceConfigItems, ...proxyItems, ...notificationItems, ...notificationConfigItems, ...websiteItems, ...backtestItems, ...agentItems, ...securityFieldItems, ...scheduleItems].forEach((item) => {
+      next.add(item.key);
+    });
+    dataSourcePriorityItems.forEach((item) => next.add(item.key));
+    HIDDEN_GENERIC_KEYS.forEach((key) => next.add(key));
     return next;
-  }, [itemsByCategory, visibleCategories]);
+  }, [aiItems, dataSourceItems, dataSourcePriorityItems, dataSourceConfigItems, notificationItems, notificationConfigItems, proxyItems, scheduleItems, securityFieldItems, visionItems, websiteItems, backtestItems, agentItems]);
 
-  const activeCategorySchema = visibleCategories.find((category) => category.category === activeCategory) ?? visibleCategories[0];
-  const activeCategoryType = (activeCategorySchema?.category ?? 'base') as SystemConfigCategory;
-  const activeTitle = getCategoryTitleZh(activeCategoryType, activeCategorySchema?.title);
-  const activeDescription = getCategoryDescriptionZh(activeCategoryType, activeCategorySchema?.description);
-  const ActiveIcon = categoryMeta[activeCategoryType].icon;
-  const settingsToastItems = toast ? [{ id: 1, type: toast.type, message: toast.message }] : [];
-
-  const renderFieldList = (items: SystemConfigItem[]) => (
-    <div className="space-y-3">
-      {items.map((item) => (
-        <SettingsField
-          key={item.key}
-          item={item}
-          value={item.value}
-          disabled={isSaving || homepageManagedKeys.has(item.key)}
-          managedHint={managedFieldHints[item.key]}
-          onChange={setDraftValue}
-          issues={issueByKey[item.key] || []}
-        />
-      ))}
-    </div>
+  const otherItems = useMemo(
+    () => items.filter((item) => !handledKeys.has(item.key) && !matchesAiManagedKey(item.key) && !matchesNotificationManagedKey(item.key)),
+    [handledKeys, items],
   );
+
+  const sections = useMemo<SettingsSection[]>(() => [
+    { id: 'ai-model', title: 'AI 模型', icon: Cpu, count: aiItems.length + visionItems.length },
+    { id: 'data-source', title: '数据源', icon: Database, count: dataSourceItems.length },
+    { id: 'notification', title: '通知渠道', icon: BellRing, count: notificationItems.length },
+    { id: 'backtest', title: '回测设置', icon: FlaskConical, count: backtestItems.length },
+    { id: 'agent', title: 'Agent 设置', icon: Bot, count: agentItems.length },
+    { id: 'security', title: '安全设置', icon: ShieldCheck, count: securityFieldItems.length + 2 },
+    { id: 'schedule', title: '定时任务', icon: RefreshCcw, count: scheduleItems.length },
+    { id: 'website', title: '网站设置', icon: Globe, count: websiteItems.length },
+    { id: 'proxy', title: '代理设置', icon: Settings2, count: proxyItems.length },
+    { id: 'other', title: '其他设置', icon: SlidersHorizontal, count: otherItems.length },
+  ], [aiItems.length, dataSourceItems.length, notificationItems.length, otherItems.length, proxyItems.length, scheduleItems.length, securityFieldItems.length, websiteItems.length, backtestItems.length, agentItems.length, visionItems.length]);
+
+  const toastItems = toast ? [{ id: 1, type: toast.type, message: toast.message }] : [];
+
+  const renderActiveSection = () => {
+    switch (activeSection) {
+      case 'ai-model':
+        return (
+          <SectionCard contentClassName="p-0">
+            <LLMChannelEditor
+              key={configVersion || 'llm-editor'}
+              items={aiItems}
+              configVersion={configVersion}
+              maskToken={maskToken}
+              onSaved={() => void load()}
+              onChangeVision={setDraftValue}
+              visionItems={visionItems}
+              disabled={isSaving || isLoading}
+            />
+          </SectionCard>
+        );
+      case 'data-source':
+        return (
+          <SectionCard contentClassName="p-0">
+            <DataSourceManager
+              key={configVersion || 'data-source-manager'}
+              items={dataSourceItems}
+              priorityItems={dataSourcePriorityItems}
+              configItems={dataSourceConfigItems}
+              issueByKey={issueByKey}
+              onChange={setDraftValue}
+              onToggleEnabled={setDraftItemEnabled}
+              disabled={isSaving || isLoading}
+            />
+          </SectionCard>
+        );
+      case 'proxy':
+        return (
+          <SectionCard title="代理设置">
+            {proxyItems.length ? renderFieldList(proxyItems, issueByKey, isSaving, setDraftValue) : <EmptyState title="暂无代理配置" />}
+          </SectionCard>
+        );
+      case 'notification':
+        return (
+          <SectionCard contentClassName="p-0">
+            <NotificationChannelManager
+              key={configVersion || 'notification-manager'}
+              items={notificationItems}
+              configItems={notificationConfigItems}
+              issueByKey={issueByKey}
+              onChange={setDraftValue}
+              onToggleEnabled={setDraftItemEnabled}
+              disabled={isSaving || isLoading}
+            />
+          </SectionCard>
+        );
+      case 'website':
+        return (
+          <SectionCard title="网站设置">
+            {websiteItems.length ? renderFieldList(websiteItems, issueByKey, isSaving, setDraftValue) : <EmptyState title="暂无网站设置" />}
+          </SectionCard>
+        );
+      case 'backtest':
+        return (
+          <SectionCard title="回测设置">
+            {backtestItems.length ? renderFieldList(backtestItems, issueByKey, isSaving, setDraftValue) : <EmptyState title="暂无回测设置" />}
+          </SectionCard>
+        );
+      case 'agent':
+        return (
+          <SectionCard title="Agent 设置">
+            {agentItems.length ? renderFieldList(agentItems, issueByKey, isSaving, setDraftValue) : <EmptyState title="暂无 Agent 设置" />}
+          </SectionCard>
+        );
+      case 'security':
+        return (
+          <div className="space-y-5">
+            <AuthManagementCard />
+            {authEnabled && passwordChangeable ? <ChangePasswordCard /> : null}
+            {securityFieldItems.length ? (
+              <SectionCard title="会话设置">
+                {renderFieldList(securityFieldItems, issueByKey, isSaving, setDraftValue)}
+              </SectionCard>
+            ) : null}
+          </div>
+        );
+      case 'schedule':
+        return (
+          <SectionCard title="定时任务">
+            {scheduleItems.length ? renderFieldList(scheduleItems, issueByKey, isSaving, setDraftValue) : <EmptyState title="暂无定时任务配置" />}
+          </SectionCard>
+        );
+      case 'other':
+        return (
+          <SectionCard title="其他设置">
+            {otherItems.length ? renderFieldList(otherItems, issueByKey, isSaving, setDraftValue) : <EmptyState title="暂无其他配置" />}
+          </SectionCard>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <AppPage className="space-y-6">
-      <PageHeader
-        eyebrow="Settings Center"
-        icon={<Sparkles size={14} />}
-        title="系统配置中心"
-        description="将常用配置按任务分组展示，减少直接面对 .env 字段的理解成本。"
-      />
+      <PageHeader eyebrow="Settings" icon={<Sparkles size={14} />} title="系统配置" description="按用途整理环境配置。" />
 
       {loadError ? (
         <InlineAlert
@@ -237,177 +405,59 @@ const SettingsPage: React.FC = () => {
       {isLoading ? (
         <SettingsLoading />
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="grid gap-6 xl:grid-cols-[240px_minmax(0,1fr)]">
           <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
-            <SectionCard eyebrow="Configuration" title="配置导航" description="按业务任务切换设置分组。" contentClassName="space-y-2">
-              {visibleCategories.map((category) => {
-                const isActive = category.category === activeCategory;
-                const Icon = categoryMeta[category.category].icon;
-                const title = getCategoryTitleZh(category.category, category.title);
-                const description = getCategoryDescriptionZh(category.category, category.description);
-                const count = visibleCountByCategory[category.category] || 0;
-
+            <SectionCard title="配置菜单" contentClassName="space-y-2">
+              {sections.map((section) => {
+                const Icon = section.icon;
+                const active = section.id === activeSection;
                 return (
                   <button
-                    key={category.category}
+                    key={section.id}
                     type="button"
-                    onClick={() => setActiveCategory(category.category)}
+                    onClick={() => setActiveSection(section.id)}
                     className={cn(
-                      'w-full rounded-2xl border px-4 py-3 text-left transition-all',
-                      isActive
-                        ? 'border-primary/20 bg-primary/10 shadow-sm'
-                        : 'border-border bg-background hover:border-primary/20 hover:bg-accent/40',
+                      'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition-colors',
+                      active ? 'bg-primary/10 text-primary ring-1 ring-primary/15' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                     )}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 gap-3">
-                        <div
-                          className={cn(
-                            'mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border',
-                            isActive ? 'border-primary/20 bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground',
-                          )}
-                        >
-                          <Icon size={18} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className={cn('text-sm font-semibold', isActive ? 'text-primary' : 'text-foreground')}>{title}</p>
-                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{description}</p>
-                        </div>
-                      </div>
-                      <span className={cn('rounded-full px-2 py-1 text-xs font-medium', isActive ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground')}>
-                        {count}
-                      </span>
-                    </div>
+                    <span className="flex items-center gap-3">
+                      <Icon size={16} className={cn(active ? 'text-primary' : 'text-muted-foreground')} />
+                      <span>{section.title}</span>
+                    </span>
+                    <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">
+                      {section.count}
+                    </span>
                   </button>
                 );
               })}
             </SectionCard>
           </aside>
 
-          <section className="space-y-5">
-            <SectionCard
-              eyebrow="Active Module"
-              title={activeTitle}
-              description={activeDescription}
-              actions={
-                hasDirty ? (
-                  <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
-                    有未保存修改
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
-                    配置已同步
-                  </span>
-                )
-              }
-            >
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-primary/10 text-primary shadow-sm">
-                  <ActiveIcon size={22} />
-                </div>
-                <p className="text-sm leading-6 text-muted-foreground">
-                  常用配置集中展示；高级字段仍保留在对应分组中，避免直接暴露全部环境变量细节。
-                </p>
-              </div>
-            </SectionCard>
-
-            {activeCategoryType === 'ai_model' ? (
-              <>
-                <SectionCard eyebrow="AI Model" title="AI 模型配置" description="统一管理模型渠道、主模型和备选模型。">
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                      <WandSparkles size={18} />
-                    </div>
-                    <p>推荐优先通过渠道编辑器管理多模型接入，减少手动维护多个环境变量的复杂度。</p>
-                  </div>
-                </SectionCard>
-                <SectionCard contentClassName="p-0">
-                  <LLMChannelEditor
-                    key={configVersion || 'llm-editor'}
-                    items={rawActiveItems}
-                    configVersion={configVersion}
-                    maskToken={maskToken}
-                    onSaved={() => void load()}
-                    disabled={isSaving || isLoading}
-                  />
-                </SectionCard>
-              </>
-            ) : null}
-
-            {activeCategoryType === 'notification' ? (
-              <SectionCard eyebrow="Notification" title="通知渠道管理" description="按渠道集中展示可用配置，减少散落字段的理解成本。" contentClassName="p-0">
-                <NotificationChannelManager
-                  key={configVersion || 'notification-manager'}
-                  items={activeItems}
-                  issueByKey={issueByKey}
-                  onChange={setDraftValue}
-                  disabled={isSaving || isLoading}
-                />
-              </SectionCard>
-            ) : null}
-
-            {activeCategoryType === 'data_source' ? (
-              <SectionCard eyebrow="Data Sources" title="数据源概览" description="先按用途理解配置，再按需展开下面的具体字段。">
-                <div className="grid gap-4 xl:grid-cols-2">
-                  {dataSourceModules.map((module) => {
-                    const configuredCount = module.keys.filter((key) => activeItems.some((item) => item.key === key && item.value.trim())).length;
-                    return (
-                      <div key={module.title} className="rounded-2xl border border-border bg-background/70 p-4 shadow-sm">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h3 className="text-sm font-semibold text-foreground">{module.title}</h3>
-                            <p className="mt-2 text-sm leading-6 text-muted-foreground">{module.description}</p>
-                          </div>
-                          <span className="rounded-full border border-primary/15 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                            {configuredCount}/{module.keys.length}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </SectionCard>
-            ) : null}
-
-            {activeCategoryType === 'system' ? <AuthManagementCard /> : null}
-
-            {activeCategoryType === 'system' && authEnabled && passwordChangeable ? <ChangePasswordCard /> : null}
-
-            {activeCategoryType !== 'ai_model' && activeCategoryType !== 'notification' && activeItems.length ? (
-              <SectionCard eyebrow="Configuration Fields" title={`${activeTitle} 配置项`} description="直接修改后可即时校验并保存到当前配置源。">
-                {renderFieldList(activeItems)}
-              </SectionCard>
-            ) : null}
-
-            {activeCategoryType !== 'ai_model' && activeCategoryType !== 'notification' && !activeItems.length ? (
-              <EmptyState title="当前分类下暂无可展示的配置项" description="请切换到其他分类，或确认当前配置 schema 中是否已注册对应字段。" />
-            ) : null}
-
-            <StickyActionBar>
-              <div>
-                <p className="text-sm font-medium text-foreground">{hasDirty ? `有 ${dirtyCount} 项修改待保存` : '当前没有待保存修改'}</p>
-                <p className="text-xs text-muted-foreground">保存后会执行现有的校验与配置刷新流程。</p>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button type="button" variant="outline" onClick={() => void load()} disabled={isLoading || isSaving}>
-                  <RefreshCcw className="h-4 w-4" />
-                  重新加载
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => resetDraft()} disabled={!hasDirty || isLoading || isSaving}>
-                  <RotateCcw className="h-4 w-4" />
-                  放弃修改
-                </Button>
-                <Button type="button" onClick={() => void save()} disabled={!hasDirty || isSaving || isLoading} isLoading={isSaving}>
-                  <Save className="h-4 w-4" />
-                  {isSaving ? '保存中...' : `保存配置${dirtyCount ? ` (${dirtyCount})` : ''}`}
-                </Button>
-              </div>
-            </StickyActionBar>
-          </section>
+          <section className="space-y-5">{renderActiveSection()}</section>
         </div>
       )}
 
-      <ToastViewport items={settingsToastItems} onDismiss={() => clearToast()} />
+      {hasDirty ? (
+        <StickyActionBar className="justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground">有未保存修改</p>
+            <p className="mt-1 text-sm text-muted-foreground">共 {dirtyCount} 项。</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" variant="secondary" onClick={resetDraft} disabled={isSaving}>
+              <RotateCcw className="h-4 w-4" />
+              放弃修改
+            </Button>
+            <Button type="button" onClick={() => void save()} isLoading={isSaving} disabled={isSaving || !hasDirty}>
+              <Save className="h-4 w-4" />
+              保存配置
+            </Button>
+          </div>
+        </StickyActionBar>
+      ) : null}
+
+      <ToastViewport items={toastItems} onDismiss={() => clearToast()} />
     </AppPage>
   );
 };

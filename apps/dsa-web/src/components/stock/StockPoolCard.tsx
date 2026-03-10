@@ -1,19 +1,25 @@
 import type React from 'react';
-import { Bot, Clock3, Eye, Minus, PlayCircle, TrendingDown, TrendingUp, Trash2 } from 'lucide-react';
+import { ArrowLeftRight, Bot, Clock3, Eye, Minus, PlayCircle, TrendingDown, TrendingUp, Trash2 } from 'lucide-react';
 import { getSentimentColor } from '../../types/analysis';
 import { formatDateTime } from '../../utils/format';
-import { normalizeTrendCategory } from '../../utils/stock';
+import { cn } from '../../utils/cn';
+import { normalizeTrendCategory, sanitizeTrendPrediction } from '../../utils/stock';
 import { Badge, Button } from '../common';
 
 function getTrendIcon(value?: string): React.ReactNode {
   const category = normalizeTrendCategory(value);
+  const normalizedValue = value || '';
+
+  if (normalizedValue.includes('震荡')) {
+    return <ArrowLeftRight className="h-3.5 w-3.5" />;
+  }
 
   if (category === 'bearish') {
     return <TrendingDown className="h-3.5 w-3.5" />;
   }
 
   if (category === 'neutral' || category === 'unknown') {
-    return <Minus className="h-3.5 w-3.5" />;
+    return <ArrowLeftRight className="h-3.5 w-3.5" />;
   }
 
   return <TrendingUp className="h-3.5 w-3.5" />;
@@ -21,9 +27,30 @@ function getTrendIcon(value?: string): React.ReactNode {
 
 function getTrendBadgeClass(value?: string): string {
   const category = normalizeTrendCategory(value);
+  const normalizedValue = value || '';
+
+  if (normalizedValue.includes('强烈看多') || normalizedValue.includes('强势多头')) {
+    return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300';
+  }
+
+  if (normalizedValue.includes('看多') || normalizedValue.includes('多头') || normalizedValue.includes('上涨') || normalizedValue.includes('反弹')) {
+    return 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300';
+  }
+
+  if (normalizedValue.includes('震荡') || normalizedValue.includes('中性') || normalizedValue.includes('观望') || normalizedValue.includes('盘整')) {
+    return 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300';
+  }
+
+  if (normalizedValue.includes('强烈看空') || normalizedValue.includes('强势空头')) {
+    return 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200';
+  }
+
+  if (normalizedValue.includes('看空') || normalizedValue.includes('空头') || normalizedValue.includes('下行') || normalizedValue.includes('下跌')) {
+    return 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200';
+  }
 
   if (category === 'bearish') {
-    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300';
+    return 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200';
   }
 
   if (category === 'neutral') {
@@ -37,15 +64,23 @@ function getTrendBadgeClass(value?: string): string {
   return 'border-border bg-background text-muted-foreground';
 }
 
+function getCompactBadgeClass(className?: string): string {
+  return cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium', className);
+}
+
 function getAdviceBadgeClass(value?: string): string {
   if (!value) return 'border-border bg-background text-muted-foreground';
+
+  if (value.includes('强烈买入') || value.includes('重仓') || value.includes('大胆介入')) {
+    return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300';
+  }
 
   if (value.includes('卖出') || value.includes('减仓') || value.includes('止损') || value.includes('离场') || value.includes('回避')) {
     return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300';
   }
 
   if (value.includes('观望') || value.includes('持有') || value.includes('等待') || value.includes('中性')) {
-    return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300';
+    return 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300';
   }
 
   if (value.includes('买入') || value.includes('加仓') || value.includes('低吸') || value.includes('介入')) {
@@ -76,7 +111,7 @@ type StockPoolCardProps = {
 const statusStyles: Record<NonNullable<StockPoolCardProps['statusTone']>, string> = {
   waiting: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300',
   watch: 'border-primary/20 bg-primary/10 text-primary',
-  active: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300',
+  active: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-300',
   default: 'border-border bg-background text-muted-foreground',
 };
 
@@ -100,6 +135,8 @@ const StockPoolCard: React.FC<StockPoolCardProps> = ({
   const hasPositiveMove = (changePercent ?? 0) > 0;
   const hasNegativeMove = (changePercent ?? 0) < 0;
   const sentimentColor = sentimentScore == null ? undefined : getSentimentColor(sentimentScore);
+  const trendText = sanitizeTrendPrediction(trendPrediction);
+  const showStatusBadge = statusLabel && (!operationAdvice || statusLabel !== operationAdvice);
   const priceToneClass = hasPositiveMove ? 'text-red-500' : hasNegativeMove ? 'text-emerald-500' : 'text-foreground';
   const changeBadgeClass = hasPositiveMove
     ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300'
@@ -117,9 +154,11 @@ const StockPoolCard: React.FC<StockPoolCardProps> = ({
               <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium font-mono text-muted-foreground">
                 {code}
               </span>
-              <span className={['rounded-full border px-2.5 py-1 text-[11px] font-semibold', statusStyles[statusTone]].join(' ')}>
-                {statusLabel}
-              </span>
+              {showStatusBadge ? (
+                <span className={['rounded-full border px-2.5 py-1 text-[11px] font-semibold', statusStyles[statusTone]].join(' ')}>
+                  {statusLabel}
+                </span>
+              ) : null}
             </div>
             {sentimentScore != null ? (
               <div className="flex items-center gap-2">
@@ -158,23 +197,30 @@ const StockPoolCard: React.FC<StockPoolCardProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {trendPrediction ? (
-            <Badge variant="default" className={getTrendBadgeClass(trendPrediction)}>
-              {getTrendIcon(trendPrediction)}
-              趋势 · {trendPrediction}
-            </Badge>
-          ) : (
-            <Badge variant="default">
-              <Minus className="h-3.5 w-3.5" />
-              等待分析
-            </Badge>
-          )}
-          {operationAdvice ? (
-            <Badge variant="default" className={getAdviceBadgeClass(operationAdvice)}>
-              建议 · {operationAdvice}
-            </Badge>
-          ) : null}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            {trendText ? (
+              <span className={getCompactBadgeClass(getTrendBadgeClass(trendText))}>
+                {getTrendIcon(trendText)}
+                趋势 · {trendText}
+              </span>
+            ) : (
+              <Badge variant="default">
+                <Minus className="h-3.5 w-3.5" />
+                等待分析
+              </Badge>
+            )}
+            {operationAdvice ? (
+              <span className={getCompactBadgeClass(getAdviceBadgeClass(operationAdvice))}>
+                建议 · {operationAdvice}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Clock3 size={12} />
+            <span>{latestAnalysisTime ? formatDateTime(latestAnalysisTime) : '暂无历史'}</span>
+          </div>
         </div>
 
         {quoteError ? (
@@ -183,38 +229,31 @@ const StockPoolCard: React.FC<StockPoolCardProps> = ({
           </p>
         ) : null}
 
-        <div className="mt-auto flex flex-col gap-2 border-t border-border pt-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Clock3 size={12} />
-            <span>{latestAnalysisTime ? formatDateTime(latestAnalysisTime) : '暂无历史记录'}</span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" size="sm" onClick={() => onAnalyze(code)}>
-              <PlayCircle size={14} />
-              分析
-            </Button>
-            <Button type="button" size="sm" variant="secondary" onClick={() => onViewReport(code)}>
-              <Eye size={14} />
-              详情
-            </Button>
-            <button
-              type="button"
-              onClick={() => onAsk(code)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-primary transition-colors hover:bg-primary/5"
-              title="AI 追问"
-            >
-              <Bot size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onRemove(code)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-              title="移除"
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
+        <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <Button type="button" size="sm" onClick={() => onAnalyze(code)}>
+            <PlayCircle size={14} />
+            分析
+          </Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onViewReport(code)}>
+            <Eye size={14} />
+            详情
+          </Button>
+          <button
+            type="button"
+            onClick={() => onAsk(code)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-primary transition-colors hover:bg-primary/5"
+            title="AI 追问"
+          >
+            <Bot size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => onRemove(code)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            title="移除"
+          >
+            <Trash2 size={16} />
+          </button>
         </div>
       </div>
     </article>

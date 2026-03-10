@@ -1,16 +1,16 @@
 import type React from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { ArrowRight, LockKeyhole } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Button, InlineAlert, Input } from '../components/common';
 import { useAuth } from '../hooks';
-import { SettingsAlert } from '../components/settings';
 
 const LoginPage: React.FC = () => {
   const { login, passwordSet } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const rawRedirect = searchParams.get('redirect') ?? '';
-  const redirect =
-    rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/';
+  const redirect = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/';
 
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -19,94 +19,87 @@ const LoginPage: React.FC = () => {
 
   const isFirstTime = !passwordSet;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const title = useMemo(() => (isFirstTime ? '设置管理员密码' : '管理员密码登录'), [isFirstTime]);
+  const description = useMemo(
+    () => (isFirstTime ? '首次开启请设置管理员密码。' : '输入管理员密码后即可进入。'),
+    [isFirstTime],
+  );
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setError(null);
+
     if (isFirstTime && password !== passwordConfirm) {
       setError('两次输入的密码不一致');
       return;
     }
+
     setIsSubmitting(true);
     try {
       const result = await login(password, isFirstTime ? passwordConfirm : undefined);
       if (result.success) {
         navigate(redirect, { replace: true });
-      } else {
-        setError(result.error ?? '登录失败');
+        return;
       }
+
+      setError(result.error ?? '登录失败');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-base px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-white/8 bg-card/80 p-6 backdrop-blur-sm">
-        <h1 className="mb-2 text-xl font-semibold text-white">
-          {isFirstTime ? '设置初始密码' : '管理员登录'}
-        </h1>
-        <p className="mb-6 text-sm text-secondary">
-          {isFirstTime
-            ? '请设置管理员密码，输入两遍确认'
-            : '请输入密码以继续访问'}
-        </p>
+    <div className="min-h-screen bg-muted/30 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-md items-center justify-center">
+        <div className="w-full rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-7">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <LockKeyhole size={20} />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Admin Access</p>
+              <h2 className="mt-1 text-xl font-semibold text-foreground">{title}</h2>
+            </div>
+          </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-secondary">
-              {isFirstTime ? '新密码' : '密码'}
-            </label>
-            <input
-              id="password"
+          <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <Input
               type="password"
-              className="input-terminal"
-              placeholder={isFirstTime ? '输入新密码' : '输入密码'}
+              label={isFirstTime ? '设置密码' : '管理员密码'}
+              placeholder={isFirstTime ? '请输入新的管理员密码' : '请输入管理员密码'}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isSubmitting}
+              onChange={(event) => setPassword(event.target.value)}
               autoFocus
               autoComplete={isFirstTime ? 'new-password' : 'current-password'}
             />
-          </div>
 
-          {isFirstTime ? (
-            <div>
-              <label
-                htmlFor="passwordConfirm"
-                className="mb-1 block text-sm font-medium text-secondary"
-              >
-                确认密码
-              </label>
-              <input
-                id="passwordConfirm"
+            {isFirstTime ? (
+              <Input
                 type="password"
-                className="input-terminal"
-                placeholder="再次输入密码"
+                label="确认密码"
+                placeholder="请再次输入管理员密码"
                 value={passwordConfirm}
-                onChange={(e) => setPasswordConfirm(e.target.value)}
-                disabled={isSubmitting}
+                onChange={(event) => setPasswordConfirm(event.target.value)}
                 autoComplete="new-password"
               />
-            </div>
-          ) : null}
+            ) : null}
 
-          {error ? (
-            <SettingsAlert
-              title={isFirstTime ? '设置失败' : '登录失败'}
-              message={error}
-              variant="error"
-              className="!mt-3"
-            />
-          ) : null}
+            {error ? <InlineAlert tone="error" message={error} /> : null}
 
-          <button
-            type="submit"
-            className="btn-primary w-full"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (isFirstTime ? '设置中...' : '登录中...') : isFirstTime ? '设置密码' : '登录'}
-          </button>
-        </form>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              isLoading={isSubmitting}
+              disabled={!password || (isFirstTime && !passwordConfirm)}
+            >
+              {!isSubmitting ? <ArrowRight size={16} /> : null}
+              {isFirstTime ? '完成初始化并进入' : '登录工作台'}
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   );

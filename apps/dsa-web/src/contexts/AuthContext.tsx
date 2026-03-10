@@ -10,10 +10,15 @@ type AuthContextValue = {
   isLoading: boolean;
   loadError: string | null;
   login: (password: string, passwordConfirm?: string) => Promise<{ success: boolean; error?: string }>;
+  updateAuthSettings: (
+    authEnabled: boolean,
+    password?: string,
+    passwordConfirm?: string,
+  ) => Promise<{ success: boolean; error?: string }>;
   changePassword: (
     currentPassword: string,
     newPassword: string,
-    newPasswordConfirm: string
+    newPasswordConfirm: string,
   ) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshStatus: () => Promise<void>;
@@ -21,7 +26,7 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function extractLoginError(err: unknown): string {
+function extractApiMessage(err: unknown, fallback: string): string {
   const axiosErr =
     err && typeof err === 'object' && 'response' in err
       ? (err as { response?: { status?: number; data?: { message?: string } } })
@@ -30,10 +35,9 @@ function extractLoginError(err: unknown): string {
     if (axiosErr.response?.status === 429) {
       return '尝试次数过多，请稍后再试';
     }
-    const serverMsg = axiosErr.response?.data?.message;
-    return serverMsg || '密码错误';
+    return axiosErr.response?.data?.message || fallback;
   }
-  return '登录失败';
+  return fallback;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -44,15 +48,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const applyStatus = useCallback((status: { authEnabled: boolean; loggedIn: boolean; passwordSet?: boolean; passwordChangeable?: boolean }) => {
+    setAuthEnabled(status.authEnabled);
+    setLoggedIn(status.loggedIn);
+    setPasswordSet(status.passwordSet ?? false);
+    setPasswordChangeable(status.passwordChangeable ?? false);
+  }, []);
+
   const fetchStatus = useCallback(async () => {
     setIsLoading(true);
     setLoadError(null);
     try {
       const status = await authApi.getStatus();
-      setAuthEnabled(status.authEnabled);
-      setLoggedIn(status.loggedIn);
-      setPasswordSet(status.passwordSet ?? false);
-      setPasswordChangeable(status.passwordChangeable ?? false);
+      applyStatus(status);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Failed to load auth status');
       setAuthEnabled(false);
@@ -62,48 +70,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [applyStatus]);
 
   useEffect(() => {
     void fetchStatus();
   }, [fetchStatus]);
 
-  const login = useCallback(
-    async (
-      password: string,
-      passwordConfirm?: string
-    ): Promise<{ success: boolean; error?: string }> => {
-      try {
-        await authApi.login(password, passwordConfirm);
-        setLoggedIn(true);
-        return { success: true };
-      } catch (err: unknown) {
-        return { success: false, error: extractLoginError(err) };
-      }
-    },
-    []
-  );
+  const login = useCallback(async (password: string, passwordConfirm?: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await authApi.login(password, passwordConfirm);
+      const status = await authApi.getStatus();
+      applyStatus(status);
+      return { success: true };
+    } catch (err: unknown) {
+      return { success: false, error: extractApiMessage(err, '登录失败') };
+    }
+  }, [applyStatus]);
 
-  const changePassword = useCallback(
-    async (
-      currentPassword: string,
-      newPassword: string,
-      newPasswordConfirm: string
-    ): Promise<{ success: boolean; error?: string }> => {
-      try {
-        await authApi.changePassword(currentPassword, newPassword, newPasswordConfirm);
-        return { success: true };
-      } catch (err: unknown) {
-        const axiosErr =
-          err && typeof err === 'object' && 'response' in err
-            ? (err as { response?: { data?: { message?: string } } })
-            : null;
-        const msg = axiosErr?.response?.data?.message || '修改失败';
-        return { success: false, error: msg };
-      }
-    },
-    []
-  );
+  const updateAuthSettings = useCallback(async (
+    nextAuthEnabled: boolean,
+    password?: string,
+    passwordConfirm?: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const status = await authApi.updateSettings(nextAuthEnabled, password, passwordConfirm);
+      applyStatus(status);
+      return { success: true };
+    } catch (err: unknown) {
+      return { success: false, error: extractApiMessage(err, '认证设置更新失败') };
+    }
+  }, [applyStatus]);
+
+  const changePassword = useCallback(async (
+    currentPassword: string,
+    newPassword: string,
+    newPasswordConfirm: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await authApi.changePassword(currentPassword, newPassword, newPasswordConfirm);
+      const status = await authApi.getStatus();
+      applyStatus(status);
+      return { success: true };
+    } catch (err: unknown) {
+      return { success: false, error: extractApiMessage(err, '修改失败') };
+    }
+  }, [applyStatus]);
 
   const logout = useCallback(async () => {
     try {
@@ -123,6 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         loadError,
         login,
+        updateAuthSettings,
         changePassword,
         logout,
         refreshStatus: fetchStatus,

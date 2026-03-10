@@ -1,13 +1,13 @@
 import type React from 'react';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Filter, PlayCircle, TrendingUp } from 'lucide-react';
 import { backtestApi } from '../api/backtest';
+import { systemConfigApi } from '../api/systemConfig';
 import {
   AppPage,
   Badge,
   Button,
   EmptyState,
-  Input,
   PageHeader,
   Pagination,
   SectionCard,
@@ -15,6 +15,7 @@ import {
 } from '../components/common';
 import type { BacktestResultItem, BacktestRunResponse, PerformanceMetrics } from '../types/backtest';
 import { useStockPool } from '../hooks';
+import { resolveDisplayStockName } from '../utils/stock';
 
 function pct(value?: number | null): string {
   if (value == null) return '--';
@@ -52,6 +53,18 @@ function boolIcon(value?: boolean | null) {
   if (value === true) return <span className="text-emerald-500">&#10003;</span>;
   if (value === false) return <span className="text-red-500">&#10007;</span>;
   return <span className="text-muted-foreground">--</span>;
+}
+
+function normalizeWatchlistCodes(value: string): string[] {
+  const uniqueCodes = new Set<string>();
+
+  value
+    .split(',')
+    .map((item) => item.trim().toUpperCase())
+    .filter(Boolean)
+    .forEach((code) => uniqueCodes.add(code));
+
+  return [...uniqueCodes];
 }
 
 const MetricRow: React.FC<{ label: string; value: string; accent?: boolean }> = ({ label, value, accent }) => (
@@ -105,6 +118,9 @@ const RunSummary: React.FC<{ data: BacktestRunResponse }> = ({ data }) => (
 
 const BacktestPage: React.FC = () => {
   const stockPool = useStockPool();
+  const loadStockPool = stockPool.load;
+  const hasSyncedWatchlistRef = useRef(false);
+  const [configWatchlistCodes, setConfigWatchlistCodes] = useState<string[]>([]);
   const [codeFilter, setCodeFilter] = useState('');
   const [evalDays, setEvalDays] = useState('');
   const [forceRerun, setForceRerun] = useState(false);
@@ -122,16 +138,58 @@ const BacktestPage: React.FC = () => {
   const [stockPerf, setStockPerf] = useState<PerformanceMetrics | null>(null);
   const [isLoadingPerf, setIsLoadingPerf] = useState(false);
 
+  const watchlistCodes = useMemo(() => {
+    const mergedCodes = new Set<string>();
+    configWatchlistCodes.forEach((code) => mergedCodes.add(code));
+    stockPool.codes.forEach((code) => mergedCodes.add(code));
+    return [...mergedCodes];
+  }, [configWatchlistCodes, stockPool.codes]);
+
   const stockOptions = useMemo(
     () => [
       { value: '', label: '全部股票' },
-      ...stockPool.items.map((item) => ({
-        value: item.code,
-        label: item.quote?.stockName ? `${item.quote.stockName} (${item.code})` : item.code,
-      })),
+      ...watchlistCodes.map((code) => {
+        const item = stockPool.items.find((stockItem) => stockItem.code === code);
+        const displayName = resolveDisplayStockName(code, item?.quote?.stockName);
+        return {
+          value: code,
+          label: displayName === code ? code : `${code} · ${displayName}`,
+        };
+      }),
     ],
-    [stockPool.items],
+    [stockPool.items, watchlistCodes],
   );
+
+  useEffect(() => {
+    if (hasSyncedWatchlistRef.current) {
+      return;
+    }
+
+    hasSyncedWatchlistRef.current = true;
+    void loadStockPool(true);
+  }, [loadStockPool]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const syncWatchlistFromConfig = async () => {
+      try {
+        const config = await systemConfigApi.getConfig(false);
+        const stockListValue = config.items.find((item) => item.key === 'STOCK_LIST')?.value ?? '';
+        if (isActive) {
+          setConfigWatchlistCodes(normalizeWatchlistCodes(stockListValue));
+        }
+      } catch (error) {
+        console.error('Failed to sync watchlist from system config:', error);
+      }
+    };
+
+    void syncWatchlistFromConfig();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   const fetchResults = useCallback(async (page = 1, code?: string, windowDays?: number) => {
     setIsLoadingResults(true);
@@ -232,39 +290,53 @@ const BacktestPage: React.FC = () => {
       />
 
       <SectionCard eyebrow="Control Panel" title="回测控制台" description="先设置筛选条件，再执行回测。">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_260px]">
-          <div className="space-y-2">
-            <Select
-              label="股票代码"
-              value={codeFilter}
-              onChange={setCodeFilter}
-              options={stockOptions}
-              placeholder={stockPool.isLoading ? '加载自选股中...' : '请选择股票代码'}
-              disabled={stockPool.isLoading || stockOptions.length <= 1}
-              className="w-full"
-            />
-            <p className="text-xs text-muted-foreground">数据来源为当前选股工作台中的自选股列表；留空表示全部股票。</p>
-          </div>
-          <Input
-            label="评估窗口（天）"
-            type="number"
-            placeholder="默认窗口"
-            value={evalDays}
-            onChange={(event) => setEvalDays(event.target.value)}
-            onKeyDown={handleKeyDown}
-            hint="不填则使用系统默认窗口"
-          />
-          <div className="rounded-2xl border border-input bg-background p-4 shadow-sm">
-            <p className="text-sm font-semibold text-foreground">执行选项</p>
-            <label className="mt-3 flex cursor-pointer items-center gap-3 text-sm text-muted-foreground">
+        <div className="custom-scrollbar overflow-x-auto">
+          <div className="flex min-w-max items-center gap-4 py-1">
+            <div className="flex items-center gap-3">
+              <span className="shrink-0 text-sm font-medium text-foreground">股票代码</span>
+              <div className="w-[220px] shrink-0">
+                <Select
+                  value={codeFilter}
+                  onChange={setCodeFilter}
+                  options={stockOptions}
+                  placeholder={stockPool.isLoading ? '加载自选股中...' : '请选择股票代码'}
+                  disabled={stockPool.isLoading}
+                  searchable
+                  searchPlaceholder="输入股票代码或名称搜索"
+                  emptyText={stockPool.isLoading ? '自选股加载中...' : watchlistCodes.length > 0 ? '没有匹配的股票' : '当前自选股池为空'}
+                  className="w-full"
+                />
+              </div>
+            </div>
+
+            <div className="h-8 w-px shrink-0 bg-border" />
+
+            <div className="flex items-center gap-3">
+              <span className="shrink-0 text-sm font-medium text-foreground">评估窗口（天）</span>
               <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-input text-primary focus:ring-primary/20"
-                checked={forceRerun}
-                onChange={(event) => setForceRerun(event.target.checked)}
+                type="number"
+                placeholder="默认窗口"
+                value={evalDays}
+                onChange={(event) => setEvalDays(event.target.value)}
+                onKeyDown={handleKeyDown}
+                className="h-10 w-36 shrink-0 rounded-xl border border-input bg-background px-3.5 py-2 text-sm text-foreground shadow-sm transition-all placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-4 focus:ring-primary/10"
               />
-              <span>强制重跑，忽略已有缓存结果</span>
-            </label>
+            </div>
+
+            <div className="h-8 w-px shrink-0 bg-border" />
+
+            <div className="flex items-center gap-3">
+              <span className="shrink-0 text-sm font-medium text-foreground">执行选项</span>
+              <label className="flex h-10 shrink-0 cursor-pointer items-center gap-3 rounded-xl border border-input bg-background px-3.5 text-sm text-foreground shadow-sm">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-input text-primary focus:ring-primary/20"
+                  checked={forceRerun}
+                  onChange={(event) => setForceRerun(event.target.checked)}
+                />
+                <span className="whitespace-nowrap text-muted-foreground">强制重跑，忽略已有缓存结果</span>
+              </label>
+            </div>
           </div>
         </div>
 

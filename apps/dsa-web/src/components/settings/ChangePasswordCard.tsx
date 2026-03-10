@@ -1,7 +1,7 @@
 import type React from 'react';
-import { useState } from 'react';
-import { useAuth } from '../../hooks';
+import { useMemo, useState } from 'react';
 import { EyeToggleIcon } from '../common';
+import { useAuth } from '../../hooks';
 import { SettingsAlert } from './SettingsAlert';
 
 export const ChangePasswordCard: React.FC = () => {
@@ -16,79 +16,93 @@ export const ChangePasswordCard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(false);
+  const commonInputClass = 'input-terminal flex-1 w-full rounded-2xl border border-input bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed';
 
-    if (!currentPassword.trim()) {
-      setError('请输入当前密码');
-      return;
-    }
-    if (!newPassword.trim()) {
-      setError('请输入新密码');
-      return;
+  const passwordHint = useMemo(() => {
+    if (!newPassword) {
+      return '至少 6 位。';
     }
     if (newPassword.length < 6) {
-      setError('新密码至少 6 位');
+      return '长度不足 6 位。';
+    }
+    if (newPasswordConfirm && newPassword !== newPasswordConfirm) {
+      return '两次输入不一致。';
+    }
+    return '可以提交。';
+  }, [newPassword, newPasswordConfirm]);
+
+  const clearFeedback = () => {
+    setError(null);
+    setSuccess(false);
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    clearFeedback();
+
+    if (!currentPassword || !newPassword || !newPasswordConfirm) {
+      setError('请完整填写当前密码和新密码。');
       return;
     }
     if (newPassword !== newPasswordConfirm) {
-      setError('两次输入的新密码不一致');
+      setError('两次输入的新密码不一致。');
       return;
     }
 
     setIsSubmitting(true);
     try {
       const result = await changePassword(currentPassword, newPassword, newPasswordConfirm);
-      if (result.success) {
-        setSuccess(true);
-        setCurrentPassword('');
-        setNewPassword('');
-        setNewPasswordConfirm('');
-        setShowCurrent(false);
-        setShowNew(false);
-        setShowConfirm(false);
-        setTimeout(() => setSuccess(false), 4000);
-      } else {
+      if (!result.success) {
         setError(result.error ?? '修改失败');
+        return;
       }
+      setCurrentPassword('');
+      setNewPassword('');
+      setNewPasswordConfirm('');
+      setSuccess(true);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="rounded-xl border border-white/8 bg-elevated/50 p-4">
-      <div className="mb-2 flex items-center gap-2">
-        <label className="text-sm font-semibold text-white">修改密码</label>
-      </div>
-      <p className="mb-3 text-xs text-muted">修改管理员登录密码</p>
-
-      <form onSubmit={handleSubmit} className="space-y-3">
+    <section className="rounded-3xl border border-border bg-card/80 p-5 shadow-sm backdrop-blur-sm md:p-6">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
-          <label
-            htmlFor="change-pass-current"
-            className="mb-1 block text-xs font-medium text-secondary"
-          >
+          <h3 className="text-lg font-semibold text-foreground">修改密码</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{passwordHint}</p>
+        </div>
+      </div>
+
+      <form
+        onSubmit={(event) => {
+          void handleSubmit(event);
+        }}
+        className="mt-5 grid gap-4 lg:grid-cols-3"
+      >
+        <div className="space-y-2">
+          <label htmlFor="change-pass-current" className="text-sm font-semibold text-foreground">
             当前密码
           </label>
           <div className="flex items-center gap-2">
             <input
               id="change-pass-current"
               type={showCurrent ? 'text' : 'password'}
-              className="input-terminal flex-1"
+              className={commonInputClass}
               placeholder="输入当前密码"
               value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
+              onChange={(event) => {
+                clearFeedback();
+                setCurrentPassword(event.target.value);
+              }}
               disabled={isSubmitting}
               autoComplete="current-password"
             />
             <button
               type="button"
-              className="btn-secondary !p-2 shrink-0"
+              className="btn-secondary !p-2.5 shrink-0"
               disabled={isSubmitting}
-              onClick={() => setShowCurrent((v) => !v)}
+              onClick={() => setShowCurrent((value) => !value)}
               title={showCurrent ? '隐藏' : '显示'}
               aria-label={showCurrent ? '隐藏密码' : '显示密码'}
             >
@@ -96,29 +110,30 @@ export const ChangePasswordCard: React.FC = () => {
             </button>
           </div>
         </div>
-        <div>
-          <label
-            htmlFor="change-pass-new"
-            className="mb-1 block text-xs font-medium text-secondary"
-          >
+
+        <div className="space-y-2">
+          <label htmlFor="change-pass-new" className="text-sm font-semibold text-foreground">
             新密码
           </label>
           <div className="flex items-center gap-2">
             <input
               id="change-pass-new"
               type={showNew ? 'text' : 'password'}
-              className="input-terminal flex-1"
-              placeholder="输入新密码（至少 6 位）"
+              className={commonInputClass}
+              placeholder="输入新密码"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={(event) => {
+                clearFeedback();
+                setNewPassword(event.target.value);
+              }}
               disabled={isSubmitting}
               autoComplete="new-password"
             />
             <button
               type="button"
-              className="btn-secondary !p-2 shrink-0"
+              className="btn-secondary !p-2.5 shrink-0"
               disabled={isSubmitting}
-              onClick={() => setShowNew((v) => !v)}
+              onClick={() => setShowNew((value) => !value)}
               title={showNew ? '隐藏' : '显示'}
               aria-label={showNew ? '隐藏密码' : '显示密码'}
             >
@@ -126,29 +141,30 @@ export const ChangePasswordCard: React.FC = () => {
             </button>
           </div>
         </div>
-        <div>
-          <label
-            htmlFor="change-pass-confirm"
-            className="mb-1 block text-xs font-medium text-secondary"
-          >
+
+        <div className="space-y-2">
+          <label htmlFor="change-pass-confirm" className="text-sm font-semibold text-foreground">
             确认新密码
           </label>
           <div className="flex items-center gap-2">
             <input
               id="change-pass-confirm"
               type={showConfirm ? 'text' : 'password'}
-              className="input-terminal flex-1"
+              className={commonInputClass}
               placeholder="再次输入新密码"
               value={newPasswordConfirm}
-              onChange={(e) => setNewPasswordConfirm(e.target.value)}
+              onChange={(event) => {
+                clearFeedback();
+                setNewPasswordConfirm(event.target.value);
+              }}
               disabled={isSubmitting}
               autoComplete="new-password"
             />
             <button
               type="button"
-              className="btn-secondary !p-2 shrink-0"
+              className="btn-secondary !p-2.5 shrink-0"
               disabled={isSubmitting}
-              onClick={() => setShowConfirm((v) => !v)}
+              onClick={() => setShowConfirm((value) => !value)}
               title={showConfirm ? '隐藏' : '显示'}
               aria-label={showConfirm ? '隐藏密码' : '显示密码'}
             >
@@ -157,21 +173,17 @@ export const ChangePasswordCard: React.FC = () => {
           </div>
         </div>
 
-        {error ? (
-          <SettingsAlert title="修改失败" message={error} variant="error" className="!mt-3" />
-        ) : null}
-        {success ? (
-          <p className="text-xs text-green-500">密码已修改成功</p>
-        ) : null}
-
-        <button
-          type="submit"
-          className="btn-primary mt-2"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? '修改中...' : '修改'}
-        </button>
+        <div className="lg:col-span-3 space-y-3">
+          {error ? <SettingsAlert title="修改失败" message={error} variant="error" /> : null}
+          {success ? <SettingsAlert title="修改成功" message="管理员密码已更新。" variant="success" /> : null}
+          <div className="flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">修改后建议重新登录验证一次。</p>
+            <button type="submit" className="btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? '修改中...' : '更新密码'}
+            </button>
+          </div>
+        </div>
       </form>
-    </div>
+    </section>
   );
 };

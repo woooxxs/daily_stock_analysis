@@ -18,14 +18,18 @@ from src.auth import (
     clear_rate_limit,
     create_session,
     get_client_ip,
+    has_stored_password,
     is_auth_enabled,
     is_password_changeable,
     is_password_set,
     record_login_failure,
+    refresh_auth_state,
     set_initial_password,
     verify_password,
     verify_session,
 )
+from src.config import Config, setup_env
+from src.core.config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +55,16 @@ class ChangePasswordRequest(BaseModel):
     new_password_confirm: str = Field(default="", alias="newPasswordConfirm")
 
 
+class AuthSettingsRequest(BaseModel):
+    """Update auth enablement and initial password settings."""
+
+    model_config = {"populate_by_name": True}
+
+    auth_enabled: bool = Field(alias="authEnabled")
+    password: str = Field(default="")
+    password_confirm: str | None = Field(default=None, alias="passwordConfirm")
+
+
 def _cookie_params(request: Request) -> dict:
     """Build cookie params including Secure based on request."""
     secure = False
@@ -58,7 +72,6 @@ def _cookie_params(request: Request) -> dict:
         proto = request.headers.get("X-Forwarded-Proto", "").lower()
         secure = proto == "https"
     else:
-        # Check URL scheme when not behind proxy
         secure = request.url.scheme == "https"
 
     try:
@@ -76,6 +89,19 @@ def _cookie_params(request: Request) -> dict:
     }
 
 
+def _apply_auth_enabled(enabled: bool) -> None:
+    """Persist auth toggle to .env and reload runtime config."""
+    manager = ConfigManager()
+    manager.apply_updates(
+        updates=[("ADMIN_AUTH_ENABLED", "true" if enabled else "false")],
+        sensitive_keys=set(),
+        mask_token="******",
+    )
+    Config.reset_instance()
+    setup_env(override=True)
+    refresh_auth_state()
+
+
 @router.get(
     "/status",
     summary="Get auth status",
@@ -91,9 +117,87 @@ async def auth_status(request: Request):
     return {
         "authEnabled": auth_enabled,
         "loggedIn": logged_in,
-        "passwordSet": is_password_set() if auth_enabled else False,
+        "passwordSet": has_stored_password(),
         "passwordChangeable": is_password_changeable() if auth_enabled else False,
     }
+
+
+@router.post(
+    "/settings",
+    summary="Update auth settings",
+    description="Enable or disable password login. When enabling without an existing password, password + passwordConfirm are required.",
+)
+async def auth_update_settings(request: Request, body: AuthSettingsRequest):
+    """Manage auth enablement from the settings page."""
+    target_enabled = body.auth_enabled
+    stored_password_exists = has_stored_password()
+
+    password = (body.password or "").strip()
+    confirm = (body.password_confirm or "").strip()
+
+    if target_enabled:
+        if password or confirm:
+            if not password:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "password_required", "message": "请输入要设置的管理员密码"},
+                )
+            if password != confirm:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "password_mismatch", "message": "两次输入的密码不一致"},
+                )
+            err = set_initial_password(password)
+            if err:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "invalid_password", "message": err},
+                )
+        elif not stored_password_exists:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "password_required", "message": "开启密码登录前请先设置密码"},
+            )
+
+    _apply_auth_enabled(target_enabled)
+
+    if target_enabled:
+        session_val = create_session()
+        if not session_val:
+            return JSONResponse(
+                status_code=500,
+                content={"error": "internal_error", "message": "Failed to create session"},
+            )
+        resp = JSONResponse(
+            content={
+                "authEnabled": True,
+                "loggedIn": True,
+                "passwordSet": has_stored_password(),
+                "passwordChangeable": True,
+            }
+        )
+        params = _cookie_params(request)
+        resp.set_cookie(
+            key=COOKIE_NAME,
+            value=session_val,
+            httponly=params["httponly"],
+            samesite=params["samesite"],
+            secure=params["secure"],
+            path=params["path"],
+            max_age=params["max_age"],
+        )
+        return resp
+
+    resp = JSONResponse(
+        content={
+            "authEnabled": False,
+            "loggedIn": False,
+            "passwordSet": has_stored_password(),
+            "passwordChangeable": False,
+        }
+    )
+    resp.delete_cookie(key=COOKIE_NAME, path="/")
+    return resp
 
 
 @router.post(
@@ -129,7 +233,6 @@ async def auth_login(request: Request, body: LoginRequest):
     password_set = is_password_set()
 
     if not password_set:
-        # First-time setup: require passwordConfirm
         confirm = (body.password_confirm or "").strip()
         if password != confirm:
             record_login_failure(ip)
@@ -188,7 +291,7 @@ async def auth_change_password(body: ChangePasswordRequest):
         )
 
     current = (body.current_password or "").strip()
-    new_pwd = (body.new_password or "").strip()
+    new_password = (body.new_password or "").strip()
     new_confirm = (body.new_password_confirm or "").strip()
 
     if not current:
@@ -196,13 +299,13 @@ async def auth_change_password(body: ChangePasswordRequest):
             status_code=400,
             content={"error": "current_required", "message": "请输入当前密码"},
         )
-    if new_pwd != new_confirm:
+    if new_password != new_confirm:
         return JSONResponse(
             status_code=400,
             content={"error": "password_mismatch", "message": "两次输入的新密码不一致"},
         )
 
-    err = change_password(current, new_pwd)
+    err = change_password(current, new_password)
     if err:
         return JSONResponse(
             status_code=400,

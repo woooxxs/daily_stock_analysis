@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 from typing import Optional, Dict, Any, List
 
 from src.storage import DatabaseManager
+from src.analyzer import normalize_trend_prediction_text
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,7 @@ class HistoryService:
                     "report_type": record.report_type,
                     "sentiment_score": record.sentiment_score,
                     "operation_advice": record.operation_advice,
-                    "trend_prediction": record.trend_prediction,
+                    "trend_prediction": normalize_trend_prediction_text(record.trend_prediction),
                     "created_at": serialize_shanghai_datetime(record.created_at),
                 })
             
@@ -231,7 +232,7 @@ class HistoryService:
             "created_at": serialize_shanghai_datetime(record.created_at),
             "analysis_summary": record.analysis_summary,
             "operation_advice": record.operation_advice,
-            "trend_prediction": record.trend_prediction,
+            "trend_prediction": normalize_trend_prediction_text(record.trend_prediction),
             "sentiment_score": record.sentiment_score,
             "sentiment_label": self._get_sentiment_label(record.sentiment_score or 50),
             "ideal_buy": str(record.ideal_buy) if record.ideal_buy else None,

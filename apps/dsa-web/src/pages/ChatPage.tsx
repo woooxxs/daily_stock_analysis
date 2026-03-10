@@ -2,12 +2,12 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Bot, FolderOpen, Info, MessageSquarePlus, Trash2 } from 'lucide-react';
+import { Bot, CircleHelp, FolderOpen, Info, MessageSquarePlus, Trash2 } from 'lucide-react';
 import { agentApi } from '../api/agent';
 import { generateUUID } from '../utils/uuid';
 import type { StrategyInfo, ChatSessionItem, ChatModelInfo } from '../api/agent';
 import { historyApi } from '../api/history';
-import { PageHeader, Select } from '../components/common';
+import { Select } from '../components/common';
 import {
   DEFAULT_STOCK_CODE,
   DEFAULT_STOCK_DESCRIPTION,
@@ -132,6 +132,7 @@ const ChatPage: React.FC = () => {
   const [sessionStockMap, setSessionStockMap] = useState<SessionStockMap>(() => readSessionStockMap());
   const [selectedStockCode, setSelectedStockCode] = useState<string>('');
   const [isStrategyInfoOpen, setIsStrategyInfoOpen] = useState(false);
+  const [isStockInfoOpen, setIsStockInfoOpen] = useState(false);
 
   const followUpContextRef = useRef<FollowUpContext | null>(null);
 
@@ -744,7 +745,7 @@ const ChatPage: React.FC = () => {
   );
 
   return (
-    <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-[1600px] gap-4 px-4 pb-8 pt-4 md:px-6 xl:grid-cols-[180px_300px_minmax(0,1fr)]">
+    <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-[1600px] gap-3 px-4 pb-6 pt-3 md:px-6 xl:grid-cols-[180px_300px_minmax(0,1fr)]">
       <div className="hidden xl:block">{stockSidebar}</div>
       <div className="hidden xl:block">{sessionSidebar}</div>
 
@@ -782,32 +783,26 @@ const ChatPage: React.FC = () => {
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col xl:col-span-1">
-        <PageHeader
-          eyebrow="Strategy Chat"
-          icon={<span className="text-sm text-primary">✦</span>}
-          title="策略问答"
-          description="按股票分组聚合对话。左侧先选股票或默认分组，再看该分组下的历史对话，右侧专注当前问答。"
-            actions={(
-            <>
-              <button type="button" onClick={() => setMobileSidebarOpen(true)} className="btn-secondary xl:hidden">
-                <FolderOpen className="mr-2 h-4 w-4" />
-                股票 / 对话
-              </button>
-              <button type="button" onClick={startNewChat} className="btn-primary">
-                新建对话
-              </button>
-            </>
-          )}
-          className="mb-4 flex-shrink-0"
-        />
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
+          <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">策略问答</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setMobileSidebarOpen(true)} className="btn-secondary xl:hidden">
+              <FolderOpen className="mr-2 h-4 w-4" />
+              股票 / 对话
+            </button>
+            <button type="button" onClick={startNewChat} className="btn-primary">
+              新建对话
+            </button>
+          </div>
+        </div>
 
         <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-border bg-card/60 shadow-sm backdrop-blur-sm">
-          <div className="border-b border-border bg-background/70 px-4 py-4 md:px-6">
-            <div className="grid gap-4 md:grid-cols-2 md:items-end xl:grid-cols-[320px_280px_minmax(0,1fr)]">
-              <div className="relative">
-                <div className="flex items-end gap-2">
+          <div className="border-b border-border bg-background/70 px-4 py-3 md:px-5">
+            <div className="relative">
+              <div className="custom-scrollbar flex items-center gap-3 overflow-x-auto py-1 pr-20 whitespace-nowrap">
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">分析策略</span>
                   <Select
-                    label="分析策略"
                     value={selectedStrategy}
                     onChange={(value) => {
                       setSelectedStrategy(value);
@@ -818,52 +813,81 @@ const ChatPage: React.FC = () => {
                       ...strategies.map((strategy) => ({ value: strategy.id, label: strategy.name })),
                     ]}
                     placeholder="请选择策略"
-                    className="w-full"
+                    className="w-[220px] shrink-0"
                   />
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">对话模型</span>
+                  <Select
+                    value={selectedModel}
+                    onChange={setSelectedModel}
+                    options={availableModels}
+                    placeholder={availableModels.length > 0 ? '请选择模型' : '暂无可用模型'}
+                    disabled={availableModels.length === 0}
+                    className="w-[220px] shrink-0"
+                  />
+                </div>
+              </div>
+
+              <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1.5 bg-background/80 pl-2 backdrop-blur-sm">
+                <div className="relative">
                   <button
                     type="button"
-                    onClick={() => setIsStrategyInfoOpen((previous) => !previous)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    onClick={() => {
+                      setIsStrategyInfoOpen((previous) => !previous);
+                      setIsStockInfoOpen(false);
+                    }}
+                    className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                     aria-label="查看当前策略说明"
                     title="当前策略说明"
                   >
                     <Info className="h-4 w-4" />
                   </button>
+
+                  {isStrategyInfoOpen ? (
+                    <div className="absolute right-0 z-20 mt-2 w-72 rounded-2xl border border-border bg-card p-4 shadow-xl">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">当前策略说明</p>
+                      <p className="mt-2 text-sm font-medium text-foreground">{selectedStrategyInfo?.name || '通用分析'}</p>
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        {selectedStrategyInfo?.description || '不限定策略模板，由系统按通用分析流程回答。'}
+                      </p>
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        当前模型：<span className="font-medium text-foreground">{selectedModelInfo?.label || selectedModel || '未配置'}</span>
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
 
-                {isStrategyInfoOpen ? (
-                  <div className="absolute z-20 mt-2 w-full max-w-md rounded-2xl border border-border bg-card p-4 shadow-xl">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">当前策略说明</p>
-                    <p className="mt-2 text-sm font-medium text-foreground">{selectedStrategyInfo?.name || '通用分析'}</p>
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      {selectedStrategyInfo?.description || '不限定策略模板，由系统按通用分析流程回答。'}
-                    </p>
-                    <p className="mt-3 text-xs text-muted-foreground">
-                      当前模型：<span className="font-medium text-foreground">{selectedModelInfo?.label || selectedModel || '未配置'}</span>
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-              <Select
-                label="对话模型"
-                value={selectedModel}
-                onChange={setSelectedModel}
-                options={availableModels}
-                placeholder={availableModels.length > 0 ? '请选择模型' : '暂无可用模型'}
-                disabled={availableModels.length === 0}
-                className="w-full"
-              />
-              <div className="rounded-2xl border border-border bg-background/70 px-4 py-3 text-sm text-muted-foreground shadow-sm md:col-span-2 xl:col-span-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">当前分组</p>
-                <p className="mt-2 font-medium text-foreground">{selectedStockTab?.label || '未选择股票分组'}</p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {selectedStockTab?.secondaryLabel || '先从左侧选择股票分组，再开始针对该分组的策略问答。'}
-                </p>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsStockInfoOpen((previous) => !previous);
+                      setIsStrategyInfoOpen(false);
+                    }}
+                    className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label="查看当前股票分组"
+                    title="查看当前股票分组"
+                  >
+                    <CircleHelp className="h-4 w-4" />
+                  </button>
+
+                  {isStockInfoOpen ? (
+                    <div className="absolute right-0 z-20 mt-2 w-72 rounded-2xl border border-border bg-card p-4 shadow-xl">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">当前分组</p>
+                      <p className="mt-2 text-sm font-medium text-foreground">{selectedStockTab?.label || '未选择股票分组'}</p>
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        {selectedStockTab?.secondaryLabel || '先从左侧选择股票分组，再开始针对该分组的策略问答。'}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="relative z-10 flex-1 overflow-y-auto space-y-6 p-4 custom-scrollbar md:p-6">
+          <div className="relative z-10 custom-scrollbar flex-1 overflow-y-auto space-y-4 p-4 md:p-5">
             {messages.length === 0 && !loading ? (
               <div className="flex h-full flex-col items-center justify-center text-center">
                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
@@ -887,14 +911,14 @@ const ChatPage: React.FC = () => {
               </div>
             ) : (
               messages.map((message) => (
-                <div key={message.id} className={`flex gap-4 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
                   <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                     message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-accent text-foreground'
                   }`}>
                     {message.role === 'user' ? 'U' : 'AI'}
                   </div>
                   <div
-                    className={`max-w-[82%] rounded-2xl px-5 py-3.5 ${
+                    className={`max-w-[86%] rounded-2xl px-4 py-3 ${
                       message.role === 'user'
                         ? 'rounded-tr-sm bg-primary text-primary-foreground shadow-md'
                         : 'rounded-tl-sm border border-border bg-card text-foreground shadow-sm'
@@ -910,10 +934,10 @@ const ChatPage: React.FC = () => {
                     {message.role === 'assistant' && renderThinkingBlock(message)}
                     {message.role === 'assistant' && expandedThinking.has(message.id) && message.thinkingSteps ? renderThinkingDetails(message.thinkingSteps) : null}
                     <div
-                      className={`prose prose-sm max-w-none break-words ${
+                      className={`prose prose-sm max-w-none break-words text-[13px] leading-6 ${
                         message.role === 'user'
-                          ? 'prose-invert text-primary-foreground'
-                          : 'text-foreground prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-code:text-primary'
+                          ? 'prose-invert text-primary-foreground prose-p:text-[13px] prose-li:text-[13px] prose-headings:text-sm prose-code:text-[12px]'
+                          : 'text-foreground prose-headings:text-foreground prose-headings:text-sm prose-p:text-foreground prose-p:text-[13px] prose-li:text-[13px] prose-strong:text-foreground prose-code:text-[12px] prose-code:text-primary'
                       }`}
                     >
                       <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
@@ -924,11 +948,11 @@ const ChatPage: React.FC = () => {
             )}
 
             {loading ? (
-              <div className="flex gap-4">
+              <div className="flex gap-3">
                 <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent text-foreground text-xs font-bold">
                   AI
                 </div>
-                <div className="min-w-[200px] max-w-[82%] rounded-2xl rounded-tl-sm border border-border bg-card px-5 py-4 shadow-sm">
+                <div className="min-w-[200px] max-w-[82%] rounded-2xl rounded-tl-sm border border-border bg-card px-4 py-3.5 shadow-sm">
                   <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
                     <div className="relative h-4 w-4 flex-shrink-0">
                       <div className="absolute inset-0 rounded-full border-2 border-primary/20" />
@@ -943,8 +967,8 @@ const ChatPage: React.FC = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="relative z-20 border-t border-border bg-card/80 p-4 backdrop-blur-md md:p-6">
-            <div className="flex items-end gap-3">
+          <div className="relative z-20 border-t border-border bg-card/80 p-3 backdrop-blur-md md:p-4">
+            <div className="flex items-end gap-2.5">
               <textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
@@ -958,7 +982,7 @@ const ChatPage: React.FC = () => {
                 }
                 disabled={loading}
                 rows={1}
-                className="input-terminal flex-1 min-h-[48px] max-h-[220px] w-full resize-none rounded-2xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary/50 transition-all disabled:opacity-50"
+                className="input-terminal flex-1 min-h-[46px] max-h-[220px] w-full resize-none rounded-2xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground transition-all focus:border-primary/50 focus:outline-none focus:ring-4 focus:ring-primary/10 disabled:opacity-50"
                 style={{ height: 'auto' }}
                 onInput={(event) => {
                   const target = event.target as HTMLTextAreaElement;
@@ -969,7 +993,7 @@ const ChatPage: React.FC = () => {
               <button
                 onClick={() => void handleSend()}
                 disabled={!input.trim() || loading}
-                className="btn-primary flex h-[48px] flex-shrink-0 items-center justify-center gap-2 px-6 shadow-lg"
+                className="btn-primary flex h-[46px] flex-shrink-0 items-center justify-center gap-2 px-5 shadow-lg"
               >
                 {loading ? (
                   <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -980,7 +1004,6 @@ const ChatPage: React.FC = () => {
                 发送
               </button>
             </div>
-            <p className="mt-3 text-center text-xs text-muted-foreground/70">模型分析可能存在偏差，请结合实际行情谨慎判断。</p>
           </div>
         </div>
       </div>
