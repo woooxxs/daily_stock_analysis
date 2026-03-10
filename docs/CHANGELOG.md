@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - 🎨 **Tailwind Plus-style admin refresh** — unified Shell, Home, Settings, Backtest, History, and report surfaces into a light-first application UI with shared cards, tables, alerts, and empty states
 - 🧭 **Settings and detail-screen refinement** — rebuilt the settings area into a left-nav management console, added sticky save actions, and aligned stock history/detail views with the same admin information hierarchy
 - 🔐 **Settings-managed password auth** — added a dedicated settings card to enable/disable admin password login, initialize passwords from the settings page, and confirm auth shutdown without requiring password re-entry
+- 🧭 **Single-entry AI model setup** — AI settings now center around one quick add flow for model channels and MiniMax extension keys, while legacy compatibility env keys move into a collapsed manual-maintenance section
+- 📝 **Dedicated report settings card** — notification settings now separate `REPORT_*` controls into a standalone report-settings area instead of mixing them into channel credential management
 
 ### Fixed
 - 🤖 **LLM settings key mismatch** — AI model editor now reads and writes `LITELLM_MODEL` and `LITELLM_FALLBACK_MODELS` instead of stale `LLM_MODEL` / `LLM_BACKUP_MODEL`
@@ -57,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - 📝 Added notes about the Tailwind Plus-style visual baseline, unified light/dark themes, and the new settings/detail screen structure
 - 📝 Documented the strategy chat model selector, stock-name sidebar labels, and the default grouping behavior for unmatched chat sessions
 - 📝 Clarified that frontend Docker releases should verify `npm run lint`, `npm run build`, and refreshed `static/` assets before deployment
+- 📝 Documented the single-entry AI model quick-add flow, the MiniMax extension placement, and the new notification-side report settings split
 
 ## [3.4.9] - 2026-03-06
 

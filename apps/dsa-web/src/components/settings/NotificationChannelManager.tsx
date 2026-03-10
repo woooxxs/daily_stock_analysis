@@ -3,7 +3,6 @@ import type React from 'react';
 import {
   BellRing,
   Bot,
-  Info,
   Mail,
   MessageCircleMore,
   Plus,
@@ -16,7 +15,6 @@ import {
 import type { ConfigValidationIssue, SystemConfigItem } from '../../types/systemConfig';
 import { Select } from '../common';
 import { SettingsField } from './SettingsField';
-import { getFieldTitleZh, getFieldDescriptionZh } from '../../utils/systemConfigI18n';
 
 type NotificationChannelDef = {
   id: string;
@@ -30,7 +28,6 @@ type NotificationChannelDef = {
 
 type NotificationChannelManagerProps = {
   items: SystemConfigItem[];
-  configItems: SystemConfigItem[];
   issueByKey: Record<string, ConfigValidationIssue[]>;
   onChange: (key: string, value: string) => void;
   onToggleEnabled: (key: string, enabled: boolean) => void;
@@ -122,18 +119,6 @@ const CHANNEL_DEFS: NotificationChannelDef[] = [
   },
 ];
 
-const CONFIG_ORDER = [
-  'REPORT_SUMMARY_ONLY',
-  'SINGLE_STOCK_NOTIFY',
-  'REPORT_TYPE',
-  'REPORT_TEMPLATES_DIR',
-  'REPORT_RENDERER_ENABLED',
-  'REPORT_INTEGRITY_ENABLED',
-  'REPORT_INTEGRITY_RETRY',
-  'REPORT_HISTORY_COMPARE_N',
-  'MERGE_EMAIL_NOTIFICATION',
-];
-
 function hasValue(value: string | undefined): boolean {
   return Boolean(value && value.trim());
 }
@@ -162,14 +147,12 @@ function findItemsByKeys(itemsByKey: Record<string, SystemConfigItem>, keys: str
 
 export const NotificationChannelManager: React.FC<NotificationChannelManagerProps> = ({
   items,
-  configItems,
   issueByKey,
   onChange,
   onToggleEnabled,
   disabled = false,
 }) => {
-  const allItems = useMemo(() => [...items, ...configItems], [items, configItems]);
-  const itemsByKey = useMemo(() => buildItemsByKey(allItems), [allItems]);
+  const itemsByKey = useMemo(() => buildItemsByKey(items), [items]);
   const configuredIds = useMemo(
     () => CHANNEL_DEFS.filter((definition) => isChannelVisible(definition, itemsByKey)).map((definition) => definition.id),
     [itemsByKey],
@@ -178,7 +161,6 @@ export const NotificationChannelManager: React.FC<NotificationChannelManagerProp
   const [manualVisibleIds, setManualVisibleIds] = useState<string[]>([]);
   const [backupValues, setBackupValues] = useState<Record<string, Record<string, string>>>({});
   const [selectedAddId, setSelectedAddId] = useState<string>(CHANNEL_DEFS[0]?.id ?? 'wechat');
-  const [showConfigPanel, setShowConfigPanel] = useState(false);
 
   const visibleIds = useMemo(() => Array.from(new Set([...configuredIds, ...manualVisibleIds])), [configuredIds, manualVisibleIds]);
 
@@ -190,11 +172,6 @@ export const NotificationChannelManager: React.FC<NotificationChannelManagerProp
   const hiddenDefs = useMemo(
     () => CHANNEL_DEFS.filter((definition) => !visibleIds.includes(definition.id)),
     [visibleIds],
-  );
-
-  const configFields = useMemo(
-    () => CONFIG_ORDER.map((key) => itemsByKey[key]).filter((item): item is SystemConfigItem => Boolean(item)),
-    [itemsByKey],
   );
 
   const addChannel = useCallback(() => {
@@ -254,85 +231,14 @@ export const NotificationChannelManager: React.FC<NotificationChannelManagerProp
     [onChange, onToggleEnabled],
   );
 
-  const renderCompactField = (item: SystemConfigItem) => {
-    const schema = item.schema;
-    const label = getFieldTitleZh(item.key, item.key);
-    const helpText = getFieldDescriptionZh(item.key);
-    const issues = issueByKey[item.key] || [];
-    const controlType = schema?.uiControl ?? 'text';
-
-    return (
-      <div key={item.key} className="grid gap-2 rounded-2xl border border-border bg-background/60 px-4 py-3 md:grid-cols-[220px_minmax(0,1fr)]">
-        <div className="flex items-start gap-2">
-          <div>
-            <p className="text-sm font-semibold text-foreground">{label}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{item.key}</p>
-          </div>
-          {helpText ? (
-            <span className="relative mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-muted-foreground group">
-              <Info size={12} />
-              <span className="pointer-events-none absolute left-1/2 top-6 z-20 w-64 -translate-x-1/2 rounded-xl border border-border bg-popover px-3 py-2 text-xs text-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">
-                {helpText}
-              </span>
-            </span>
-          ) : null}
-        </div>
-        <div className="space-y-2">
-          {controlType === 'switch' ? (
-            <div className="flex justify-end">
-              <label className="inline-flex cursor-pointer items-center gap-3 rounded-2xl border border-input bg-background px-3 py-2 shadow-sm">
-                <input
-                  type="checkbox"
-                  className="peer sr-only"
-                  checked={item.value.trim().toLowerCase() === 'true'}
-                  disabled={disabled || !schema?.isEditable}
-                  onChange={(event) => onChange(item.key, event.target.checked ? 'true' : 'false')}
-                />
-                <div className="h-6 w-11 rounded-full bg-input transition-all after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full peer-disabled:opacity-50" />
-                <span className="text-sm text-muted-foreground">{item.value.trim().toLowerCase() === 'true' ? '已启用' : '未启用'}</span>
-              </label>
-            </div>
-          ) : controlType === 'select' && schema?.options?.length ? (
-            <Select
-              value={item.value}
-              onChange={(value) => onChange(item.key, value)}
-              options={schema.options.map((option) => ({ value: option, label: option }))}
-              disabled={disabled || !schema.isEditable}
-              className="w-full"
-            />
-          ) : (
-            <input
-              type={schema?.dataType === 'integer' || schema?.dataType === 'number' ? 'number' : 'text'}
-              className="input-terminal w-full"
-              value={item.value}
-              disabled={disabled || !schema?.isEditable}
-              onChange={(event) => onChange(item.key, event.target.value)}
-            />
-          )}
-          {issues.length ? (
-            <p className="text-xs text-destructive">{issues[0]?.message}</p>
-          ) : null}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-background/70 p-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="text-base font-semibold text-foreground">通知渠道</h3>
-          <p className="mt-1 text-sm text-muted-foreground">添加后填写参数；停用时保留原值。</p>
+          <p className="mt-1 text-sm text-muted-foreground">这里只处理推送渠道本身的凭证与启停；报告相关参数已独立到上方“报告设置”。</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <button
-            type="button"
-            onClick={() => setShowConfigPanel(true)}
-            disabled={disabled}
-            className="btn-secondary shrink-0 whitespace-nowrap"
-          >
-            通知配置
-          </button>
           <Select
             value={selectedAddId}
             onChange={setSelectedAddId}
@@ -429,41 +335,6 @@ export const NotificationChannelManager: React.FC<NotificationChannelManagerProp
           })}
         </div>
       )}
-
-      {showConfigPanel ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-          onClick={() => setShowConfigPanel(false)}
-        >
-          <div
-            className="w-full max-w-2xl rounded-3xl border border-border bg-card p-5 shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">通知配置</h3>
-              </div>
-              <button
-                type="button"
-                className="btn-secondary !h-9 !px-3"
-                onClick={() => setShowConfigPanel(false)}
-              >
-                关闭
-              </button>
-            </div>
-
-            <div className="mt-5 space-y-2">
-              {configFields.length ? (
-                configFields.map((item) => renderCompactField(item))
-              ) : (
-                <div className="rounded-2xl border border-dashed border-border bg-background/50 px-4 py-6 text-center text-sm text-muted-foreground">
-                  暂无通知配置项。
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 };

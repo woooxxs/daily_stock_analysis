@@ -20,6 +20,7 @@ import {
   ApiErrorAlert,
   AppPage,
   Button,
+  Collapsible,
   EmptyState,
   PageHeader,
   SectionCard,
@@ -34,6 +35,7 @@ import {
   NotificationChannelManager,
   SettingsField,
   SettingsLoading,
+  SmartModelAddDialog,
 } from '../components/settings';
 import type { SystemConfigItem } from '../types/systemConfig';
 import { cn } from '../utils/cn';
@@ -125,7 +127,7 @@ const WEBSITE_SETTING_KEYS = new Set([
   'DEBUG',
   'DATABASE_PATH',
 ]);
-const NOTIFICATION_CONFIG_KEYS = new Set([
+const REPORT_SETTING_KEYS = new Set([
   'REPORT_SUMMARY_ONLY',
   'SINGLE_STOCK_NOTIFY',
   'REPORT_TYPE',
@@ -243,7 +245,7 @@ const SettingsPage: React.FC = () => {
     });
   }, [items]);
   const notificationItems = useMemo(() => items.filter((item) => matchesNotificationManagedKey(item.key)), [items]);
-  const notificationConfigItems = useMemo(() => items.filter((item) => NOTIFICATION_CONFIG_KEYS.has(item.key)), [items]);
+  const reportSettingItems = useMemo(() => items.filter((item) => REPORT_SETTING_KEYS.has(item.key)), [items]);
   const websiteItems = useMemo(() => items.filter((item) => WEBSITE_SETTING_KEYS.has(item.key)), [items]);
   const backtestItems = useMemo(() => items.filter((item) => BACKTEST_SETTING_KEYS.has(item.key)), [items]);
   const agentItems = useMemo(() => items.filter((item) => AGENT_SETTING_KEYS.has(item.key)), [items]);
@@ -252,13 +254,13 @@ const SettingsPage: React.FC = () => {
 
   const handledKeys = useMemo(() => {
     const next = new Set<string>();
-    [...aiItems, ...visionItems, ...dataSourceItems, ...dataSourceConfigItems, ...proxyItems, ...notificationItems, ...notificationConfigItems, ...websiteItems, ...backtestItems, ...agentItems, ...securityFieldItems, ...scheduleItems].forEach((item) => {
+    [...aiItems, ...visionItems, ...dataSourceItems, ...dataSourceConfigItems, ...proxyItems, ...notificationItems, ...reportSettingItems, ...websiteItems, ...backtestItems, ...agentItems, ...securityFieldItems, ...scheduleItems].forEach((item) => {
       next.add(item.key);
     });
     dataSourcePriorityItems.forEach((item) => next.add(item.key));
     HIDDEN_GENERIC_KEYS.forEach((key) => next.add(key));
     return next;
-  }, [aiItems, dataSourceItems, dataSourcePriorityItems, dataSourceConfigItems, notificationItems, notificationConfigItems, proxyItems, scheduleItems, securityFieldItems, visionItems, websiteItems, backtestItems, agentItems]);
+  }, [aiItems, dataSourceItems, dataSourcePriorityItems, dataSourceConfigItems, notificationItems, reportSettingItems, proxyItems, scheduleItems, securityFieldItems, visionItems, websiteItems, backtestItems, agentItems]);
 
   const otherItems = useMemo(
     () => items.filter((item) => !handledKeys.has(item.key) && !matchesAiManagedKey(item.key) && !matchesNotificationManagedKey(item.key)),
@@ -268,7 +270,7 @@ const SettingsPage: React.FC = () => {
   const sections = useMemo<SettingsSection[]>(() => [
     { id: 'ai-model', title: 'AI 模型', icon: Cpu, count: aiItems.length },
     { id: 'data-source', title: '数据源', icon: Database, count: dataSourceItems.length },
-    { id: 'notification', title: '通知渠道', icon: BellRing, count: notificationItems.length },
+    { id: 'notification', title: '通知渠道', icon: BellRing, count: notificationItems.length + reportSettingItems.length },
     { id: 'backtest', title: '回测设置', icon: FlaskConical, count: backtestItems.length },
     { id: 'agent', title: 'Agent 设置', icon: Bot, count: agentItems.length },
     { id: 'security', title: '安全设置', icon: ShieldCheck, count: securityFieldItems.length + 2 },
@@ -276,7 +278,7 @@ const SettingsPage: React.FC = () => {
     { id: 'website', title: '网站设置', icon: Globe, count: websiteItems.length },
     { id: 'proxy', title: '代理设置', icon: Settings2, count: proxyItems.length },
     { id: 'other', title: '其他设置', icon: SlidersHorizontal, count: otherItems.length },
-  ], [aiItems.length, dataSourceItems.length, notificationItems.length, otherItems.length, proxyItems.length, scheduleItems.length, securityFieldItems.length, websiteItems.length, backtestItems.length, agentItems.length, visionItems.length]);
+  ], [aiItems.length, dataSourceItems.length, notificationItems.length, reportSettingItems.length, otherItems.length, proxyItems.length, scheduleItems.length, securityFieldItems.length, websiteItems.length, backtestItems.length, agentItems.length, visionItems.length]);
 
   const toastItems = toast ? [{ id: 1, type: toast.type, title: toast.type === 'error' ? toast.error.title : undefined, message: toast.type === 'error' ? toast.error.message : toast.message }] : [];
 
@@ -285,7 +287,26 @@ const SettingsPage: React.FC = () => {
       case 'ai-model':
         return (
           <div className="space-y-5">
-            <SectionCard contentClassName="p-0">
+            <SectionCard
+              title="快速配置"
+              description="从一个入口快速添加模型渠道或 MiniMax 扩展能力。普通用户只需要先选类型、提供商，再补 API Key 与模型列表。"
+              actions={(
+                <SmartModelAddDialog
+                  items={aiItems}
+                  configVersion={configVersion}
+                  maskToken={maskToken}
+                  disabled={isSaving || isLoading}
+                  onSaved={() => void load()}
+                />
+              )}
+            >
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>快速配置主写 `LLM_CHANNELS` 与 `LLM_&lt;NAME&gt;_*`，不会自动同步旧版兼容 key。</p>
+                <p>如果你已经在其他栏目有未保存的修改，建议先保存当前页面，再添加新模型，避免刷新后丢失草稿。</p>
+              </div>
+            </SectionCard>
+
+            <SectionCard title="已配置模型" description="这里用于查看与手动维护现有模型渠道、主模型、备选模型和视觉模型。" contentClassName="p-0">
               <LLMChannelEditor
                 key={configVersion || 'llm-editor'}
                 items={aiItems}
@@ -297,12 +318,15 @@ const SettingsPage: React.FC = () => {
                 disabled={isSaving || isLoading}
               />
             </SectionCard>
+
             {aiSupplementalItems.length ? (
               <SectionCard
                 title="兼容密钥与高级参数"
-                description="这里集中展示旧版单提供商配置和扩展能力配置，例如 OpenAI 兼容、DeepSeek、Gemini、Anthropic 以及 MiniMax。"
+                description="这些键继续支持手工维护；快速添加不会自动同步到这里。适合直接编辑旧版 `OPENAI_* / DEEPSEEK_* / GEMINI_* / ANTHROPIC_*` 与 MiniMax 扩展能力。"
               >
-                {renderFieldList(aiSupplementalItems, issueByKey, isSaving, setDraftValue)}
+                <Collapsible title="展开手工维护区" defaultOpen={false}>
+                  {renderFieldList(aiSupplementalItems, issueByKey, isSaving, setDraftValue)}
+                </Collapsible>
               </SectionCard>
             ) : null}
           </div>
@@ -330,17 +354,25 @@ const SettingsPage: React.FC = () => {
         );
       case 'notification':
         return (
-          <SectionCard contentClassName="p-0">
-            <NotificationChannelManager
-              key={configVersion || 'notification-manager'}
-              items={notificationItems}
-              configItems={notificationConfigItems}
-              issueByKey={issueByKey}
-              onChange={setDraftValue}
-              onToggleEnabled={setDraftItemEnabled}
-              disabled={isSaving || isLoading}
-            />
-          </SectionCard>
+          <div className="space-y-5">
+            <SectionCard
+              title="报告设置"
+              description="控制报告格式、模板渲染、完整性校验与历史对比，不影响渠道认证信息。"
+            >
+              {reportSettingItems.length ? renderFieldList(reportSettingItems, issueByKey, isSaving, setDraftValue) : <EmptyState title="暂无报告设置" />}
+            </SectionCard>
+
+            <SectionCard contentClassName="p-0">
+              <NotificationChannelManager
+                key={configVersion || 'notification-manager'}
+                items={notificationItems}
+                issueByKey={issueByKey}
+                onChange={setDraftValue}
+                onToggleEnabled={setDraftItemEnabled}
+                disabled={isSaving || isLoading}
+              />
+            </SectionCard>
+          </div>
         );
       case 'website':
         return (
