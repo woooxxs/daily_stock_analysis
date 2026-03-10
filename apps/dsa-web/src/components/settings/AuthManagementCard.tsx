@@ -107,7 +107,7 @@ export const AuthManagementCard: React.FC = () => {
       </SectionCard>
 
       {showEnableDialog ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm" onClick={() => !isSubmitting && setShowEnableDialog(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4 backdrop-blur-sm dark:bg-slate-950/45" onClick={() => !isSubmitting && setShowEnableDialog(false)}>
           <div className="w-full max-w-lg rounded-3xl border border-border bg-card p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <h3 className="text-lg font-semibold text-foreground">开启密码登录</h3>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -196,7 +196,7 @@ export const AuthManagementCard: React.FC = () => {
       ) : null}
 
       {showDisableConfirm ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4 backdrop-blur-sm dark:bg-slate-950/45">
           <div className="w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500">

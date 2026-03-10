@@ -17,10 +17,10 @@ import {
 } from 'lucide-react';
 import { useAuth, useSystemConfig } from '../hooks';
 import {
+  ApiErrorAlert,
   AppPage,
   Button,
   EmptyState,
-  InlineAlert,
   PageHeader,
   SectionCard,
   StickyActionBar,
@@ -269,7 +269,7 @@ const SettingsPage: React.FC = () => {
     { id: 'other', title: '其他设置', icon: SlidersHorizontal, count: otherItems.length },
   ], [aiItems.length, dataSourceItems.length, notificationItems.length, otherItems.length, proxyItems.length, scheduleItems.length, securityFieldItems.length, websiteItems.length, backtestItems.length, agentItems.length, visionItems.length]);
 
-  const toastItems = toast ? [{ id: 1, type: toast.type, message: toast.message }] : [];
+  const toastItems = toast ? [{ id: 1, type: toast.type, title: toast.type === 'error' ? toast.error.title : undefined, message: toast.type === 'error' ? toast.error.message : toast.message }] : [];
 
   const renderActiveSection = () => {
     switch (activeSection) {
@@ -375,30 +375,18 @@ const SettingsPage: React.FC = () => {
       <PageHeader eyebrow="Settings" icon={<Sparkles size={14} />} title="系统配置" description="按用途整理环境配置。" />
 
       {loadError ? (
-        <InlineAlert
-          tone="error"
-          title="加载设置失败"
-          message={loadError}
-          action={
-            <Button type="button" variant="secondary" onClick={() => void retry()}>
-              {retryAction === 'load' ? '重试加载' : '重新加载'}
-            </Button>
-          }
+        <ApiErrorAlert
+          error={loadError}
+          actionLabel={retryAction === 'load' ? '重试加载' : '重新加载'}
+          onAction={() => void retry()}
         />
       ) : null}
 
       {saveError ? (
-        <InlineAlert
-          tone="error"
-          title="保存失败"
-          message={saveError}
-          action={
-            retryAction === 'save' ? (
-              <Button type="button" variant="secondary" onClick={() => void retry()}>
-                重试保存
-              </Button>
-            ) : undefined
-          }
+        <ApiErrorAlert
+          error={saveError}
+          actionLabel={retryAction === 'save' ? '重试保存' : undefined}
+          onAction={retryAction === 'save' ? () => void retry() : undefined}
         />
       ) : null}
 

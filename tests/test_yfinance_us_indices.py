@@ -90,6 +90,42 @@ class TestFetchYfTickerData(unittest.TestCase):
         self.assertEqual(result['change_pct'], 0.0)
 
 
+class TestStooqFallback(unittest.TestCase):
+    """Stooq 美股兜底解析测试"""
+
+    def setUp(self):
+        from data_provider.yfinance_fetcher import YfinanceFetcher
+        self.fetcher = YfinanceFetcher()
+
+    @patch('data_provider.yfinance_fetcher.urlopen')
+    def test_skips_header_and_parses_first_data_row(self, mock_urlopen):
+        mock_response = MagicMock()
+        mock_response.read.return_value = (
+            b'Date,Time,Open,High,Low,Close,Volume\n'
+            b'2026-03-10,21:00:09,182.10,184.20,181.50,183.70,123456\n'
+        )
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+
+        result = self.fetcher._get_us_stock_quote_from_stooq('AAPL')
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.code, 'AAPL')
+        self.assertEqual(result.source.value, 'stooq')
+        self.assertAlmostEqual(result.price, 183.70)
+        self.assertAlmostEqual(result.open_price, 182.10)
+        self.assertEqual(result.volume, 123456)
+
+    @patch('data_provider.yfinance_fetcher.urlopen')
+    def test_returns_none_when_only_header_exists(self, mock_urlopen):
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'Date,Time,Open,High,Low,Close,Volume\n'
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+
+        result = self.fetcher._get_us_stock_quote_from_stooq('AAPL')
+
+        self.assertIsNone(result)
+
+
 class TestGetUsMainIndices(unittest.TestCase):
     """_get_us_main_indices 美股指数批量获取测试"""
 

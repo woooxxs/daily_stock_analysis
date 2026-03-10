@@ -71,7 +71,7 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
       <button
         onClick={handleCopy}
         className="absolute top-2 right-2 px-2 py-1 text-xs rounded
-          bg-slate-700 hover:bg-slate-600 text-gray-300
+          bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600
           transition-colors z-10"
       >
         {copied ? '已复制!' : '复制'}
@@ -79,7 +79,7 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
 
       {/* JSON 内容 */}
       <div
-        className="bg-slate-900/80 rounded-lg p-4 overflow-auto custom-scrollbar
+        className="bg-slate-100/90 dark:bg-slate-900/70 rounded-lg p-4 overflow-auto custom-scrollbar
           border border-slate-700/50 font-mono text-sm text-gray-300"
         style={{ maxHeight }}
       >

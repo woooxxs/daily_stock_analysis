@@ -196,6 +196,14 @@ class ConfigManager:
             if entry is None:
                 continue
 
+            existing_entry = key_to_entry.get(entry.key)
+            if existing_entry is None:
+                key_to_entry[entry.key] = entry
+                continue
+
+            if entry.is_commented and not existing_entry.is_commented:
+                continue
+
             key_to_entry[entry.key] = entry
 
         return key_to_entry

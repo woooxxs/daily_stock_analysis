@@ -179,7 +179,7 @@ def is_auth_enabled() -> bool:
 
 
 def has_stored_password() -> bool:
-    """Return whether a valid stored password hash exists."""
+    """Return whether a valid stored password hash exists on disk."""
     return _load_credential_from_file()
 
 
@@ -187,8 +187,7 @@ def is_password_set() -> bool:
     """Return whether initial password has been set (credential file exists and valid)."""
     if not is_auth_enabled():
         return False
-    _load_credential_from_file()
-    return _password_hash_stored is not None
+    return has_stored_password()
 
 
 def is_password_changeable() -> bool:

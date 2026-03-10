@@ -13,6 +13,7 @@ import { useSearchParams } from 'react-router-dom';
 import type { HistoryItem, TaskInfo } from '../types/analysis';
 import { historyApi } from '../api/history';
 import { analysisApi, DuplicateTaskError } from '../api/analysis';
+import { getParsedApiError } from '../api/error';
 import { validateStockCode } from '../utils/validation';
 import { getRecentStartDate, getTodayInShanghai } from '../utils/format';
 import { resolveDisplayStockName } from '../utils/stock';
@@ -303,7 +304,7 @@ const HomePage: React.FC = () => {
     onTaskFailed: (task) => {
       updateTask(task);
       pushToast('error', task.error || task.message || `${task.stockName || task.stockCode} 分析失败`);
-      setStoreError(task.error || '分析失败');
+      setStoreError(getParsedApiError(task.error || '分析失败'));
       window.setTimeout(() => removeTask(task.taskId), 1600);
     },
     onError: () => {
@@ -412,7 +413,7 @@ const HomePage: React.FC = () => {
         pushToast('info', result.message || '该股票正在分析中。');
       } else {
         pushToast('error', result.message || '分析失败');
-        setStoreError(result.message || '分析失败');
+        setStoreError(getParsedApiError(result.message || '分析失败'));
       }
 
       setLoading(false);
@@ -441,7 +442,7 @@ const HomePage: React.FC = () => {
         if (!silent) {
           pushToast('error', message);
         }
-        setStoreError(message);
+        setStoreError(getParsedApiError(message));
         if (silent) {
           console.warn('Auto refresh quotes failed:', message);
         }
@@ -500,7 +501,7 @@ const HomePage: React.FC = () => {
       if (failedCount > 0 && submittedCount === 0 && duplicateCount === 0) {
         const message = `批量分析失败：${failedCodes.slice(0, 3).join('、')}${failedCodes.length > 3 ? ' 等股票提交失败' : ' 提交失败'}`;
         pushToast('error', message);
-        setStoreError(message);
+        setStoreError(getParsedApiError(message));
       } else {
         const summary = [`已提交 ${submittedCount} 只`];
         if (duplicateCount > 0) {
@@ -511,7 +512,7 @@ const HomePage: React.FC = () => {
         }
         pushToast(submittedCount > 0 ? 'success' : 'info', `全部重新分析完成：${summary.join('，')}。`);
         if (failedCount > 0) {
-          setStoreError(`以下股票提交失败：${failedCodes.join('、')}`);
+          setStoreError(getParsedApiError(`以下股票提交失败：${failedCodes.join('、')}`));
         }
       }
     } finally {
@@ -727,7 +728,7 @@ const HomePage: React.FC = () => {
       </SectionCard>
 
       {isBatchAnalyzeConfirmOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4 py-6 backdrop-blur-sm dark:bg-slate-950/45">
           <div
             ref={batchAnalyzeConfirmRef}
             className="w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl"
@@ -762,7 +763,7 @@ const HomePage: React.FC = () => {
       ) : null}
 
       {isAddStockModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-4 py-6 backdrop-blur-sm dark:bg-slate-950/45">
           <div ref={addStockModalRef} className="w-full max-w-5xl rounded-3xl border border-border bg-card p-6 shadow-2xl sm:p-8">
             <div className="flex items-start justify-between gap-4">
               <div>

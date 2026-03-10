@@ -43,7 +43,7 @@ export const Drawer: React.FC<DrawerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
-      <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-sm dark:bg-slate-950/45" onClick={onClose} />
 
       <div className={cn('absolute inset-y-0 right-0 flex w-full', width)}>
         <div className="animate-slide-in-right relative flex w-full flex-col border-l border-border bg-card shadow-2xl">

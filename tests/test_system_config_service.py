@@ -117,6 +117,28 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertNotIn("# GEMINI_API_KEY=secret-key-value", env_content)
         self.assertEqual(self.manager.read_config_map()["GEMINI_API_KEY"], "secret-key-value")
 
+
+    def test_active_entry_wins_over_later_commented_duplicate(self) -> None:
+        self.env_path.write_text(
+            "\n".join(
+                [
+                    "GEMINI_API_KEY=active-secret",
+                    "# GEMINI_API_KEY=commented-secret",
+                    "STOCK_LIST=600519,000001",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        entries = self.manager.read_config_entries()
+        current_map = self.manager.read_config_map()
+
+        self.assertIn("GEMINI_API_KEY", entries)
+        self.assertFalse(entries["GEMINI_API_KEY"].is_commented)
+        self.assertEqual(entries["GEMINI_API_KEY"].value, "active-secret")
+        self.assertEqual(current_map["GEMINI_API_KEY"], "active-secret")
+
     def test_update_inserts_new_key_by_template_order(self) -> None:
         old_version = self.manager.get_config_version()
         self.service.update(

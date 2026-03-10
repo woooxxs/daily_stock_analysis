@@ -760,7 +760,7 @@ const ChatPage: React.FC = () => {
       ) : null}
 
       {deleteConfirmId ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/50 backdrop-blur-sm" onClick={() => setDeleteConfirmId(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-sm dark:bg-slate-950/40" onClick={() => setDeleteConfirmId(null)}>
           <div className="mx-4 max-w-sm rounded-xl border border-border bg-card p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <h3 className="mb-2 font-bold text-foreground">删除对话</h3>
             <p className="mb-5 text-sm text-muted-foreground">删除后，该对话将不可恢复，确认删除吗？</p>

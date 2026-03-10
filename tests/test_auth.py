@@ -177,6 +177,18 @@ class AuthSetPasswordTestCase(unittest.TestCase):
 
         self._run_with_patch(run)
 
+    def test_has_stored_password_remains_true_after_auth_disabled(self) -> None:
+        def run():
+            err = auth.set_initial_password("password123")
+            self.assertIsNone(err)
+            self.assertTrue(auth.has_stored_password())
+
+            auth._auth_enabled = False
+            self.assertTrue(auth.has_stored_password())
+            self.assertFalse(auth.is_password_set())
+
+        self._run_with_patch(run)
+
     def test_set_initial_password_invalid(self) -> None:
         def run():
             self.assertIsNotNone(auth.set_initial_password(""))

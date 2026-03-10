@@ -14,10 +14,7 @@ export interface ChatRequest {
   model?: string;
 }
 
-export interface ChatStreamRequest extends ChatRequest {
-  session_id?: string;
-  context?: unknown;
-}
+export interface ChatStreamRequest extends ChatRequest {}
 
 export interface ChatResponse {
   success: boolean;

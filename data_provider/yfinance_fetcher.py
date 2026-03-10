@@ -397,8 +397,10 @@ class YfinanceFetcher(BaseFetcher):
             return None
 
         try:
-            row = next(csv.reader(StringIO(payload)))
-            if len(row) < 8:
+            reader = csv.reader(StringIO(payload))
+            header = next(reader, None)
+            row = next(reader, None)
+            if header is None or row is None or len(row) < 8:
                 raise ValueError(f"unexpected Stooq payload: {payload}")
 
             open_price = float(row[3])

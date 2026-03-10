@@ -61,7 +61,7 @@ export const StockDetailModal: React.FC<StockDetailModalProps> = ({
   const changeClass = hasPositiveMove ? 'text-red-500' : hasNegativeMove ? 'text-emerald-500' : 'text-muted-foreground';
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/25 px-4 py-6 backdrop-blur-sm dark:bg-slate-950/45" onClick={onClose}>
       <div
         className="flex h-[88vh] w-[96vw] max-h-[960px] max-w-7xl flex-col overflow-hidden rounded-[32px] border border-border bg-card shadow-2xl"
         onClick={(event) => event.stopPropagation()}

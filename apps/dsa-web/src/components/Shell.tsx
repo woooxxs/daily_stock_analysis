@@ -145,7 +145,7 @@ export const Shell: React.FC<ShellProps> = ({ children }) => {
 
       {mobileMenuOpen ? (
         <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
+          <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-sm dark:bg-slate-950/45" onClick={() => setMobileMenuOpen(false)} />
           <aside className="absolute inset-y-0 left-0 w-[88vw] max-w-xs border-r border-border bg-card shadow-2xl">{renderNav(true)}</aside>
         </div>
       ) : null}
