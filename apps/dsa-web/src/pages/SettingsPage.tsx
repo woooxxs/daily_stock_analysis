@@ -129,6 +129,11 @@ const NOTIFICATION_CONFIG_KEYS = new Set([
   'REPORT_SUMMARY_ONLY',
   'SINGLE_STOCK_NOTIFY',
   'REPORT_TYPE',
+  'REPORT_TEMPLATES_DIR',
+  'REPORT_RENDERER_ENABLED',
+  'REPORT_INTEGRITY_ENABLED',
+  'REPORT_INTEGRITY_RETRY',
+  'REPORT_HISTORY_COMPARE_N',
   'MERGE_EMAIL_NOTIFICATION',
 ]);
 const HIDDEN_GENERIC_KEYS = new Set([
@@ -218,8 +223,12 @@ const SettingsPage: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [clearToast, toast]);
 
-  const aiItems = useMemo(() => items.filter((item) => matchesAiManagedKey(item.key) || item.schema?.category === 'ai_model'), [items]);
+  const aiItems = useMemo(() => items.filter((item) => item.schema?.category === 'ai_model'), [items]);
   const visionItems = useMemo(() => items.filter((item) => VISION_KEYS.has(item.key)), [items]);
+  const aiSupplementalItems = useMemo(
+    () => aiItems.filter((item) => !matchesAiManagedKey(item.key) && !VISION_KEYS.has(item.key)),
+    [aiItems],
+  );
   const dataSourceItems = useMemo(() => items.filter((item) => DATA_SOURCE_MANAGER_KEYS.has(item.key)), [items]);
   const dataSourcePriorityItems = useMemo(() => items.filter((item) => DATA_SOURCE_PRIORITY_KEYS.has(item.key)), [items]);
   const dataSourceConfigItems = useMemo(() => items.filter((item) => DATA_SOURCE_CONFIG_KEYS.has(item.key)), [items]);
@@ -257,7 +266,7 @@ const SettingsPage: React.FC = () => {
   );
 
   const sections = useMemo<SettingsSection[]>(() => [
-    { id: 'ai-model', title: 'AI 模型', icon: Cpu, count: aiItems.length + visionItems.length },
+    { id: 'ai-model', title: 'AI 模型', icon: Cpu, count: aiItems.length },
     { id: 'data-source', title: '数据源', icon: Database, count: dataSourceItems.length },
     { id: 'notification', title: '通知渠道', icon: BellRing, count: notificationItems.length },
     { id: 'backtest', title: '回测设置', icon: FlaskConical, count: backtestItems.length },
@@ -275,18 +284,28 @@ const SettingsPage: React.FC = () => {
     switch (activeSection) {
       case 'ai-model':
         return (
-          <SectionCard contentClassName="p-0">
-            <LLMChannelEditor
-              key={configVersion || 'llm-editor'}
-              items={aiItems}
-              configVersion={configVersion}
-              maskToken={maskToken}
-              onSaved={() => void load()}
-              onChangeVision={setDraftValue}
-              visionItems={visionItems}
-              disabled={isSaving || isLoading}
-            />
-          </SectionCard>
+          <div className="space-y-5">
+            <SectionCard contentClassName="p-0">
+              <LLMChannelEditor
+                key={configVersion || 'llm-editor'}
+                items={aiItems}
+                configVersion={configVersion}
+                maskToken={maskToken}
+                onSaved={() => void load()}
+                onChangeVision={setDraftValue}
+                visionItems={visionItems}
+                disabled={isSaving || isLoading}
+              />
+            </SectionCard>
+            {aiSupplementalItems.length ? (
+              <SectionCard
+                title="兼容密钥与高级参数"
+                description="这里集中展示旧版单提供商配置和扩展能力配置，例如 OpenAI 兼容、DeepSeek、Gemini、Anthropic 以及 MiniMax。"
+              >
+                {renderFieldList(aiSupplementalItems, issueByKey, isSaving, setDraftValue)}
+              </SectionCard>
+            ) : null}
+          </div>
         );
       case 'data-source':
         return (

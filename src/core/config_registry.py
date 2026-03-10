@@ -383,8 +383,8 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     },
     "MINIMAX_API_KEYS": {
         "title": "MiniMax API Key",
-        "description": "MiniMax API key (search priority: Bocha > MiniMax > Tavily > Brave > SerpAPI).",
-        "category": "data_source",
+        "description": "MiniMax API key for AI-assisted Coding Plan Web Search; supports multiple keys separated by commas.",
+        "category": "ai_model",
         "data_type": "string",
         "ui_control": "password",
         "is_sensitive": True,
