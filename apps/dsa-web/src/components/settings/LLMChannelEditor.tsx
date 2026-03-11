@@ -10,12 +10,14 @@ import { buildItemsByKey, collectKnownModels, parseModelNames } from './modelCon
 
 type LLMChannelEditorProps = {
   items: SystemConfigItem[];
+  modelSourceItems?: SystemConfigItem[];
   onChangeField: (key: string, value: string) => void;
   disabled?: boolean;
 };
 
 type VisionModelDialogButtonProps = {
   items: SystemConfigItem[];
+  modelSourceItems?: SystemConfigItem[];
   onChangeField: (key: string, value: string) => void;
   disabled?: boolean;
 };
@@ -234,11 +236,12 @@ function renderVisionFormRow(title: string, keyName: string, description: string
 
 export const VisionModelDialogButton: React.FC<VisionModelDialogButtonProps> = ({
   items,
+  modelSourceItems,
   onChangeField,
   disabled = false,
 }) => {
   const itemsByKey = useMemo(() => buildItemsByKey(items), [items]);
-  const availableModels = useMemo(() => collectKnownModels(items), [items]);
+  const availableModels = useMemo(() => collectKnownModels(modelSourceItems ?? items), [items, modelSourceItems]);
   const [isOpen, setIsOpen] = useState(false);
 
   const visionModelItem = itemsByKey.VISION_MODEL;
@@ -326,11 +329,12 @@ export const VisionModelDialogButton: React.FC<VisionModelDialogButtonProps> = (
 
 export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
   items,
+  modelSourceItems,
   onChangeField,
   disabled = false,
 }) => {
   const itemsByKey = useMemo(() => buildItemsByKey(items), [items]);
-  const availableModels = useMemo(() => collectKnownModels(items), [items]);
+  const availableModels = useMemo(() => collectKnownModels(modelSourceItems ?? items), [items, modelSourceItems]);
 
   const mainModelItem = itemsByKey.LITELLM_MODEL;
   const fallbackModelsItem = itemsByKey.LITELLM_FALLBACK_MODELS;

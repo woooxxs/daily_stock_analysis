@@ -284,6 +284,16 @@ const SettingsPage: React.FC = () => {
       return true;
     });
   }, [aiItems, visionEditorItems]);
+  const aiModelSourceItems = useMemo(() => {
+    const seen = new Set<string>();
+    return [...aiItems, ...visionEditorItems].filter((item) => {
+      if (seen.has(item.key)) {
+        return false;
+      }
+      seen.add(item.key);
+      return true;
+    });
+  }, [aiItems, visionEditorItems]);
   const dataSourceItems = useMemo(() => items.filter((item) => DATA_SOURCE_MANAGER_KEYS.has(item.key)), [items]);
   const dataSourcePriorityItems = useMemo(() => items.filter((item) => DATA_SOURCE_PRIORITY_KEYS.has(item.key)), [items]);
   const dataSourceConfigItems = useMemo(() => items.filter((item) => DATA_SOURCE_CONFIG_KEYS.has(item.key)), [items]);
@@ -348,6 +358,7 @@ const SettingsPage: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-2">
                   <VisionModelDialogButton
                     items={aiTopItems}
+                    modelSourceItems={aiModelSourceItems}
                     onChangeField={setDraftValue}
                     disabled={isSaving || isLoading}
                   />
@@ -367,6 +378,7 @@ const SettingsPage: React.FC = () => {
               <LLMChannelEditor
                 key={configVersion || 'llm-editor'}
                 items={aiTopItems}
+                modelSourceItems={aiModelSourceItems}
                 onChangeField={setDraftValue}
                 disabled={isSaving || isLoading}
               />

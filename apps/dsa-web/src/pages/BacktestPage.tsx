@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Filter, PlayCircle, TrendingUp } from 'lucide-react';
 import { backtestApi } from '../api/backtest';
 import { systemConfigApi } from '../api/systemConfig';
@@ -14,8 +14,6 @@ import {
   Select,
 } from '../components/common';
 import type { BacktestResultItem, BacktestRunResponse, PerformanceMetrics } from '../types/backtest';
-import { useStockPool } from '../hooks';
-import { resolveDisplayStockName } from '../utils/stock';
 
 function pct(value?: number | null): string {
   if (value == null) return '--';
@@ -117,10 +115,8 @@ const RunSummary: React.FC<{ data: BacktestRunResponse }> = ({ data }) => (
 );
 
 const BacktestPage: React.FC = () => {
-  const stockPool = useStockPool();
-  const loadStockPool = stockPool.load;
-  const hasSyncedWatchlistRef = useRef(false);
-  const [configWatchlistCodes, setConfigWatchlistCodes] = useState<string[]>([]);
+  const [watchlistCodes, setWatchlistCodes] = useState<string[]>([]);
+  const [isLoadingWatchlist, setIsLoadingWatchlist] = useState(true);
   const [codeFilter, setCodeFilter] = useState('');
   const [evalDays, setEvalDays] = useState('');
   const [forceRerun, setForceRerun] = useState(false);
@@ -138,49 +134,34 @@ const BacktestPage: React.FC = () => {
   const [stockPerf, setStockPerf] = useState<PerformanceMetrics | null>(null);
   const [isLoadingPerf, setIsLoadingPerf] = useState(false);
 
-  const watchlistCodes = useMemo(() => {
-    const mergedCodes = new Set<string>();
-    configWatchlistCodes.forEach((code) => mergedCodes.add(code));
-    stockPool.codes.forEach((code) => mergedCodes.add(code));
-    return [...mergedCodes];
-  }, [configWatchlistCodes, stockPool.codes]);
-
   const stockOptions = useMemo(
     () => [
       { value: '', label: '全部股票' },
-      ...watchlistCodes.map((code) => {
-        const item = stockPool.items.find((stockItem) => stockItem.code === code);
-        const displayName = resolveDisplayStockName(code, item?.quote?.stockName);
-        return {
-          value: code,
-          label: displayName === code ? code : `${code} · ${displayName}`,
-        };
-      }),
+      ...watchlistCodes.map((code) => ({
+        value: code,
+        label: code,
+      })),
     ],
-    [stockPool.items, watchlistCodes],
+    [watchlistCodes],
   );
-
-  useEffect(() => {
-    if (hasSyncedWatchlistRef.current) {
-      return;
-    }
-
-    hasSyncedWatchlistRef.current = true;
-    void loadStockPool(true);
-  }, [loadStockPool]);
 
   useEffect(() => {
     let isActive = true;
 
     const syncWatchlistFromConfig = async () => {
+      setIsLoadingWatchlist(true);
       try {
         const config = await systemConfigApi.getConfig(false);
         const stockListValue = config.items.find((item) => item.key === 'STOCK_LIST')?.value ?? '';
         if (isActive) {
-          setConfigWatchlistCodes(normalizeWatchlistCodes(stockListValue));
+          setWatchlistCodes(normalizeWatchlistCodes(stockListValue));
         }
       } catch (error) {
         console.error('Failed to sync watchlist from system config:', error);
+      } finally {
+        if (isActive) {
+          setIsLoadingWatchlist(false);
+        }
       }
     };
 
@@ -299,11 +280,11 @@ const BacktestPage: React.FC = () => {
                   value={codeFilter}
                   onChange={setCodeFilter}
                   options={stockOptions}
-                  placeholder={stockPool.isLoading ? '加载自选股中...' : '请选择股票代码'}
-                  disabled={stockPool.isLoading}
+                  placeholder={isLoadingWatchlist ? '加载自选股中...' : '请选择股票代码'}
+                  disabled={isLoadingWatchlist}
                   searchable
-                  searchPlaceholder="输入股票代码或名称搜索"
-                  emptyText={stockPool.isLoading ? '自选股加载中...' : watchlistCodes.length > 0 ? '没有匹配的股票' : '当前自选股池为空'}
+                  searchPlaceholder="输入股票代码搜索"
+                  emptyText={isLoadingWatchlist ? '自选股加载中...' : watchlistCodes.length > 0 ? '没有匹配的股票' : '当前自选股池为空'}
                   className="w-full"
                 />
               </div>
