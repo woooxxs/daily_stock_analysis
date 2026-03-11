@@ -103,7 +103,7 @@ export const AI_BRAND_DEFINITIONS: AiBrandDefinition[] = [
     id: 'openai_compatible',
     title: 'OpenAI 兼容',
     description: '统一承接 OPENAI_* 这组全局兼容配置。',
-    sections: [{ id: 'compatible', title: '兼容路径', mode: 'compatible', keys: [...OPENAI_COMPATIBLE_KEYS] }],
+    sections: [{ id: 'compatible', title: '兼容路径', mode: 'compatible', keys: ['OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_BASE_URL', 'OPENAI_MODEL', 'OPENAI_TEMPERATURE'] }],
   },
   {
     id: 'openai',
@@ -322,7 +322,7 @@ export function collectKnownModels(items: SystemConfigItem[]): string[] {
   parseModelNames(itemsByKey.LITELLM_FALLBACK_MODELS?.value || '').forEach((model) => models.add(model));
 
   items.forEach((item) => {
-    if (item.key.endsWith('_MODELS') || item.key === 'VISION_MODEL' || item.key === 'OPENAI_VISION_MODEL') {
+    if (item.key.endsWith('_MODELS') || item.key === 'VISION_MODEL' || item.key === 'OPENAI_VISION_MODEL' || item.key === 'OPENAI_MODEL') {
       parseModelNames(item.value).forEach((model) => models.add(model));
     }
   });
