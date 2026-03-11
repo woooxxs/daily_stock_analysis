@@ -19,11 +19,9 @@ import {
   AI_BRAND_DEFINITIONS,
   buildItemsByKey,
   collectVisibleAiBrandIds,
-  getAiBrandDefinition,
   getBrandState,
   getChannelKeys,
   hasValue,
-  resolveCompatibleBrandId,
   upsertChannelIdentifier,
   type AiBrandDefinition,
   type AiBrandId,
@@ -45,12 +43,12 @@ const BRAND_ICONS: Record<AiBrandId, React.ComponentType<{ className?: string; s
   deepseek: Bot,
   gemini: Sparkles,
   anthropic: BrainCircuit,
+  openai_compatible: Cable,
   openai: Orbit,
   qwen: Cable,
   glm: BrainCircuit,
   moonshot: Sparkles,
   minimax: KeyRound,
-  openai_compatible_custom: Cable,
   litellm_yaml: FileJson,
 };
 
@@ -80,7 +78,7 @@ function getFieldOverrides(item: SystemConfigItem): { title?: string; descriptio
   if (item.key.endsWith('_BASE_URL')) {
     return {
       title: 'Base URL',
-      description: '渠道模式下的接口地址。OpenAI 兼容品牌通常需要填写这一路径。',
+      description: '渠道模式下的接口地址。',
     };
   }
   if (item.key.endsWith('_API_KEY')) {
@@ -142,11 +140,6 @@ export const AiProviderConfigManager: React.FC<AiProviderConfigManagerProps> = (
     });
   }, [manualVisibleBrandIds]);
 
-  const compatibleOwnerId = useMemo(
-    () => resolveCompatibleBrandId(itemsByKey, manualVisibleBrandIds),
-    [itemsByKey, manualVisibleBrandIds],
-  );
-
   const visibleBrandIds = useMemo(
     () => collectVisibleAiBrandIds(items, manualVisibleBrandIds),
     [items, manualVisibleBrandIds],
@@ -191,7 +184,7 @@ export const AiProviderConfigManager: React.FC<AiProviderConfigManagerProps> = (
 
   const toggleBrand = useCallback(
     (definition: AiBrandDefinition) => {
-      const state = getBrandState(definition, itemsByKey, compatibleOwnerId, manualVisibleBrandIds, manualEnabledByBrand);
+      const state = getBrandState(definition, itemsByKey, manualVisibleBrandIds, manualEnabledByBrand);
       const shouldEnable = state.status !== 'enabled';
 
       if (!state.hasSavedValue) {
@@ -199,9 +192,6 @@ export const AiProviderConfigManager: React.FC<AiProviderConfigManagerProps> = (
       }
 
       definition.sections.forEach((section) => {
-        if (section.mode === 'compatible' && compatibleOwnerId !== definition.id) {
-          return;
-        }
         section.keys.forEach((key) => onToggleEnabled(key, shouldEnable));
       });
 
@@ -211,15 +201,12 @@ export const AiProviderConfigManager: React.FC<AiProviderConfigManagerProps> = (
         syncChannelList(definition, shouldEnable && hasChannelValue);
       }
     },
-    [compatibleOwnerId, itemsByKey, manualEnabledByBrand, manualVisibleBrandIds, onToggleEnabled, syncChannelList],
+    [itemsByKey, manualEnabledByBrand, manualVisibleBrandIds, onToggleEnabled, syncChannelList],
   );
 
   const deleteBrand = useCallback(
     (definition: AiBrandDefinition) => {
       definition.sections.forEach((section) => {
-        if (section.mode === 'compatible' && compatibleOwnerId !== definition.id) {
-          return;
-        }
         section.keys.forEach((key) => {
           onChange(key, '');
           onToggleEnabled(key, false);
@@ -237,7 +224,7 @@ export const AiProviderConfigManager: React.FC<AiProviderConfigManagerProps> = (
       });
       onSetManualVisible(definition.id, false);
     },
-    [compatibleOwnerId, onChange, onSetManualVisible, onToggleEnabled, syncChannelList],
+    [onChange, onSetManualVisible, onToggleEnabled, syncChannelList],
   );
 
   if (!visibleDefinitions.length) {
@@ -252,7 +239,7 @@ export const AiProviderConfigManager: React.FC<AiProviderConfigManagerProps> = (
     <div className="space-y-4 p-5">
       {visibleDefinitions.map((definition) => {
         const Icon = BRAND_ICONS[definition.id];
-        const state = getBrandState(definition, itemsByKey, compatibleOwnerId, manualVisibleBrandIds, manualEnabledByBrand);
+        const state = getBrandState(definition, itemsByKey, manualVisibleBrandIds, manualEnabledByBrand);
         const statusMeta = STATUS_META[state.status];
 
         return (
@@ -297,26 +284,6 @@ export const AiProviderConfigManager: React.FC<AiProviderConfigManagerProps> = (
 
             <div className={['mt-4 space-y-4', state.status === 'enabled' ? '' : 'opacity-60'].join(' ')}>
               {definition.sections.map((section) => {
-                if (section.mode === 'compatible' && compatibleOwnerId !== definition.id) {
-                  return (
-                    <div key={section.id} className="rounded-2xl border border-border bg-background/50 px-4 py-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">{section.title}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">{getSectionKeyText(definition, section)}</p>
-                        </div>
-                      </div>
-                      {compatibleOwnerId ? (
-                        <p className="mt-3 text-sm text-muted-foreground">
-                          这组 `OPENAI_*` 全局兼容键当前归到 {getAiBrandDefinition(compatibleOwnerId).title}。
-                        </p>
-                      ) : (
-                        <p className="mt-3 text-sm text-muted-foreground">当前还没有分配任何 `OPENAI_*` 全局兼容配置。</p>
-                      )}
-                    </div>
-                  );
-                }
-
                 const sectionItems = section.keys.map((key) => itemsByKey[key]).filter((item): item is SystemConfigItem => Boolean(item));
                 if (!sectionItems.length) {
                   return null;

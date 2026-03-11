@@ -6,11 +6,11 @@ export type AiBrandId =
   | 'gemini'
   | 'anthropic'
   | 'openai'
+  | 'openai_compatible'
   | 'qwen'
   | 'glm'
   | 'moonshot'
   | 'minimax'
-  | 'openai_compatible_custom'
   | 'litellm_yaml';
 
 export type AiBrandSectionMode = 'single' | 'compatible' | 'channel' | 'yaml';
@@ -36,7 +36,6 @@ export type AiBrandState = {
   hasSavedValue: boolean;
   hasEnabledValue: boolean;
   status: AiBrandStatus;
-  ownsCompatiblePath: boolean;
   hasChannelValue: boolean;
 };
 
@@ -63,11 +62,10 @@ export const AI_BRAND_DEFINITIONS: AiBrandDefinition[] = [
   {
     id: 'deepseek',
     title: 'DeepSeek',
-    description: '可用官方直连，也可走 OpenAI 兼容或 LiteLLM 渠道。',
+    description: 'DeepSeek 官方直连与 LiteLLM 渠道配置。',
     channelIdentifier: 'DEEPSEEK',
     sections: [
       { id: 'official', title: '官方直连', mode: 'single', keys: ['DEEPSEEK_API_KEY'] },
-      { id: 'compatible', title: '兼容路径', mode: 'compatible', keys: [...OPENAI_COMPATIBLE_KEYS] },
       {
         id: 'channel',
         title: '渠道路径',
@@ -102,12 +100,17 @@ export const AI_BRAND_DEFINITIONS: AiBrandDefinition[] = [
     ],
   },
   {
+    id: 'openai_compatible',
+    title: 'OpenAI 兼容',
+    description: '统一承接 OPENAI_* 这组全局兼容配置。',
+    sections: [{ id: 'compatible', title: '兼容路径', mode: 'compatible', keys: [...OPENAI_COMPATIBLE_KEYS] }],
+  },
+  {
     id: 'openai',
     title: 'OpenAI',
-    description: '官方 OpenAI 或标准兼容接口。',
+    description: 'OpenAI 的 LiteLLM 渠道配置。',
     channelIdentifier: 'OPENAI',
     sections: [
-      { id: 'compatible', title: '兼容路径', mode: 'compatible', keys: [...OPENAI_COMPATIBLE_KEYS] },
       {
         id: 'channel',
         title: '渠道路径',
@@ -119,10 +122,9 @@ export const AI_BRAND_DEFINITIONS: AiBrandDefinition[] = [
   {
     id: 'qwen',
     title: 'Qwen / 通义千问',
-    description: '统一承接 DashScope / Qwen 的真实兼容配置。',
+    description: '通义千问的 LiteLLM 渠道配置。',
     channelIdentifier: 'QWEN',
     sections: [
-      { id: 'compatible', title: '兼容路径', mode: 'compatible', keys: [...OPENAI_COMPATIBLE_KEYS] },
       {
         id: 'channel',
         title: '渠道路径',
@@ -134,10 +136,9 @@ export const AI_BRAND_DEFINITIONS: AiBrandDefinition[] = [
   {
     id: 'glm',
     title: 'GLM / 智谱',
-    description: '统一承接 BigModel / 智谱 GLM 的真实兼容配置。',
+    description: '智谱 GLM 的 LiteLLM 渠道配置。',
     channelIdentifier: 'GLM',
     sections: [
-      { id: 'compatible', title: '兼容路径', mode: 'compatible', keys: [...OPENAI_COMPATIBLE_KEYS] },
       {
         id: 'channel',
         title: '渠道路径',
@@ -149,10 +150,9 @@ export const AI_BRAND_DEFINITIONS: AiBrandDefinition[] = [
   {
     id: 'moonshot',
     title: 'Moonshot',
-    description: 'Moonshot / Kimi 兼容配置与 LiteLLM 渠道统一维护。',
+    description: 'Moonshot / Kimi 的 LiteLLM 渠道配置。',
     channelIdentifier: 'MOONSHOT',
     sections: [
-      { id: 'compatible', title: '兼容路径', mode: 'compatible', keys: [...OPENAI_COMPATIBLE_KEYS] },
       {
         id: 'channel',
         title: '渠道路径',
@@ -166,12 +166,6 @@ export const AI_BRAND_DEFINITIONS: AiBrandDefinition[] = [
     title: 'MiniMax',
     description: 'AI 扩展能力 Key，不参与主模型路由。',
     sections: [{ id: 'extension', title: '扩展能力', mode: 'single', keys: ['MINIMAX_API_KEYS'] }],
-  },
-  {
-    id: 'openai_compatible_custom',
-    title: '兼容 OpenAI（自定义）',
-    description: '承接无法识别品牌的 OPENAI_* 全局兼容配置。',
-    sections: [{ id: 'compatible', title: '兼容路径', mode: 'compatible', keys: [...OPENAI_COMPATIBLE_KEYS] }],
   },
   {
     id: 'litellm_yaml',
@@ -204,7 +198,6 @@ export function parseCommaValues(value: string): string[] {
 export function buildItemsByKey(items: SystemConfigItem[]): Record<string, SystemConfigItem> {
   return Object.fromEntries(items.map((item) => [item.key, item])) as Record<string, SystemConfigItem>;
 }
-
 
 function buildVirtualSchema(key: string): SystemConfigFieldSchema {
   const isApiKey = key.endsWith('_API_KEY') || key.endsWith('_API_KEYS') || key === 'AIHUBMIX_KEY' || key === 'MINIMAX_API_KEYS';
@@ -266,109 +259,12 @@ export function getAiBrandDefinition(brandId: AiBrandId): AiBrandDefinition {
   return definition;
 }
 
-export function brandSupportsCompatiblePath(brandId: AiBrandId): boolean {
-  return getAiBrandDefinition(brandId).sections.some((section) => section.mode === 'compatible');
-}
-
 function itemHasSavedValue(item: SystemConfigItem | undefined): boolean {
   return hasValue(item?.value);
 }
 
 function itemHasEnabledValue(item: SystemConfigItem | undefined): boolean {
   return Boolean(item && hasValue(item.value) && !item.isCommented);
-}
-
-function inferBrandFromModelText(rawValue: string): AiBrandId | null {
-  const value = rawValue.toLowerCase();
-  if (!value.trim()) {
-    return null;
-  }
-  if (value.includes('deepseek')) {
-    return 'deepseek';
-  }
-  if (value.includes('qwen')) {
-    return 'qwen';
-  }
-  if (value.includes('glm') || value.includes('zhipu')) {
-    return 'glm';
-  }
-  if (value.includes('moonshot')) {
-    return 'moonshot';
-  }
-  if (value.includes('gpt-') || value.includes('openai/')) {
-    return 'openai';
-  }
-  return null;
-}
-
-function inferBrandFromBaseUrl(rawValue: string): AiBrandId | null {
-  const value = rawValue.toLowerCase();
-  if (!value.trim()) {
-    return null;
-  }
-  if (value.includes('deepseek')) {
-    return 'deepseek';
-  }
-  if (value.includes('dashscope')) {
-    return 'qwen';
-  }
-  if (value.includes('bigmodel')) {
-    return 'glm';
-  }
-  if (value.includes('moonshot')) {
-    return 'moonshot';
-  }
-  if (value.includes('openai.com')) {
-    return 'openai';
-  }
-  return null;
-}
-
-function inferBrandFromModelEntries(rawValue: string): AiBrandId | null {
-  for (const entry of parseCommaValues(rawValue)) {
-    const brandId = inferBrandFromModelText(entry);
-    if (brandId) {
-      return brandId;
-    }
-  }
-  return null;
-}
-
-export function inferCompatibleBrandIdFromConfiguredValues(itemsByKey: Record<string, SystemConfigItem>): AiBrandId | null {
-  const hasCompatibleValue = OPENAI_COMPATIBLE_KEYS.some((key) => itemHasSavedValue(itemsByKey[key]));
-  if (!hasCompatibleValue) {
-    return null;
-  }
-
-  const mainModelOwner = inferBrandFromModelEntries(itemsByKey.LITELLM_MODEL?.value || '');
-  if (mainModelOwner) {
-    return mainModelOwner;
-  }
-
-  const fallbackOwner = inferBrandFromModelEntries(itemsByKey.LITELLM_FALLBACK_MODELS?.value || '');
-  if (fallbackOwner) {
-    return fallbackOwner;
-  }
-
-  const baseUrlOwner = inferBrandFromBaseUrl(itemsByKey.OPENAI_BASE_URL?.value || '');
-  if (baseUrlOwner) {
-    return baseUrlOwner;
-  }
-
-  return 'openai_compatible_custom';
-}
-
-export function resolveCompatibleBrandId(
-  itemsOrMap: SystemConfigItem[] | Record<string, SystemConfigItem>,
-  manualVisibleBrandIds: AiBrandId[] = [],
-): AiBrandId | null {
-  const itemsByKey = Array.isArray(itemsOrMap) ? buildItemsByKey(itemsOrMap) : itemsOrMap;
-  const configuredOwner = inferCompatibleBrandIdFromConfiguredValues(itemsByKey);
-  if (configuredOwner) {
-    return configuredOwner;
-  }
-
-  return [...manualVisibleBrandIds].reverse().find((brandId) => brandSupportsCompatiblePath(brandId)) || null;
 }
 
 export function getChannelKeys(definition: AiBrandDefinition): string[] {
@@ -378,26 +274,14 @@ export function getChannelKeys(definition: AiBrandDefinition): string[] {
 export function getBrandState(
   definition: AiBrandDefinition,
   itemsByKey: Record<string, SystemConfigItem>,
-  compatibleOwnerId: AiBrandId | null,
   manualVisibleBrandIds: AiBrandId[] = [],
   manualEnabledByBrand: Partial<Record<AiBrandId, boolean>> = {},
 ): AiBrandState {
-  const ownsCompatiblePath = compatibleOwnerId === definition.id;
-  const hasSavedCompatibleValue = ownsCompatiblePath && OPENAI_COMPATIBLE_KEYS.some((key) => itemHasSavedValue(itemsByKey[key]));
-  const hasEnabledCompatibleValue = ownsCompatiblePath && OPENAI_COMPATIBLE_KEYS.some((key) => itemHasEnabledValue(itemsByKey[key]));
-
+  const keys = definition.sections.flatMap((section) => section.keys);
+  const hasSavedValue = keys.some((key) => itemHasSavedValue(itemsByKey[key]));
+  const hasEnabledValue = keys.some((key) => itemHasEnabledValue(itemsByKey[key]));
   const channelKeys = getChannelKeys(definition);
   const hasChannelValue = channelKeys.some((key) => itemHasSavedValue(itemsByKey[key]));
-  const hasEnabledChannelValue = channelKeys.some((key) => itemHasEnabledValue(itemsByKey[key]));
-
-  const otherKeys = definition.sections
-    .filter((section) => section.mode !== 'channel' && section.mode !== 'compatible')
-    .flatMap((section) => section.keys);
-  const hasSavedOtherValue = otherKeys.some((key) => itemHasSavedValue(itemsByKey[key]));
-  const hasEnabledOtherValue = otherKeys.some((key) => itemHasEnabledValue(itemsByKey[key]));
-
-  const hasSavedValue = hasSavedCompatibleValue || hasChannelValue || hasSavedOtherValue;
-  const hasEnabledValue = hasEnabledCompatibleValue || hasEnabledChannelValue || hasEnabledOtherValue;
   const isManualVisible = manualVisibleBrandIds.includes(definition.id);
   const manualEnabled = manualEnabledByBrand[definition.id] ?? true;
 
@@ -412,21 +296,19 @@ export function getBrandState(
     hasSavedValue,
     hasEnabledValue,
     status,
-    ownsCompatiblePath,
     hasChannelValue,
   };
 }
 
 export function collectVisibleAiBrandIds(items: SystemConfigItem[], manualVisibleBrandIds: AiBrandId[] = []): AiBrandId[] {
   const itemsByKey = buildItemsByKey(items);
-  const compatibleOwnerId = resolveCompatibleBrandId(itemsByKey, manualVisibleBrandIds);
 
   return AI_BRAND_DEFINITIONS
     .filter((definition) => {
       if (manualVisibleBrandIds.includes(definition.id)) {
         return true;
       }
-      const state = getBrandState(definition, itemsByKey, compatibleOwnerId);
+      const state = getBrandState(definition, itemsByKey);
       return state.hasSavedValue;
     })
     .map((definition) => definition.id);

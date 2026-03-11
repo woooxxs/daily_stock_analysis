@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - 🎨 **Tailwind Plus-style admin refresh** — unified Shell, Home, Settings, Backtest, History, and report surfaces into a light-first application UI with shared cards, tables, alerts, and empty states
 - 🧭 **Settings and detail-screen refinement** — rebuilt the settings area into a left-nav management console, added sticky save actions, and aligned stock history/detail views with the same admin information hierarchy
 - 🔐 **Settings-managed password auth** — added a dedicated settings card to enable/disable admin password login, initialize passwords from the settings page, and confirm auth shutdown without requiring password re-entry
-- 🧭 **Brand-grouped AI model setup** — AI settings now keep only model routing at the top and group configured providers below as brand cards built from real `.env.example` paths, including OpenAI-compatible routing for DeepSeek / Qwen / GLM / Moonshot
+- 🧭 **Brand-grouped AI model setup** — AI settings now keep only model routing at the top and group configured providers below as brand cards built from real `.env.example` paths, with `OPENAI_*` exposed as a standalone OpenAI-compatible card
 - 📝 **Dedicated report settings panel** — notification settings now collapse `REPORT_*` behind a single report-settings entry with icon-based summaries on the main screen and a dedicated detail panel for editing
 
 ### Fixed
