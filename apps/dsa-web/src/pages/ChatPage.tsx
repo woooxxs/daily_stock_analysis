@@ -338,8 +338,11 @@ const ChatPage: React.FC = () => {
     (targetSessionId: string) => {
       if (targetSessionId === sessionId && messages.length > 0) return;
       setMessages([]);
+      setProgressSteps([]);
+      setLoading(false);
       setSessionId(targetSessionId);
       sessionIdRef.current = targetSessionId;
+      followUpContextRef.current = null;
       setMobileSidebarOpen(false);
       const targetSession = sessions.find((session) => session.session_id === targetSessionId);
       if (targetSession) {
@@ -348,6 +351,9 @@ const ChatPage: React.FC = () => {
       agentApi
         .getChatSessionMessages(targetSessionId)
         .then((msgs) => {
+          if (sessionIdRef.current !== targetSessionId) {
+            return;
+          }
           setMessages(msgs.map((message) => ({ id: message.id, role: message.role, content: message.content })));
         })
         .catch(() => {});
@@ -361,9 +367,29 @@ const ChatPage: React.FC = () => {
     sessionIdRef.current = newId;
     setMessages([]);
     setProgressSteps([]);
+    setInput('');
+    setLoading(false);
     followUpContextRef.current = null;
     setMobileSidebarOpen(false);
   }, []);
+
+  const handleSelectStockTab = useCallback((stockCode: string) => {
+    if (stockCode === selectedStockCode) {
+      setMobileSidebarOpen(false);
+      return;
+    }
+
+    const newId = generateUUID();
+    setSelectedStockCode(stockCode);
+    setSessionId(newId);
+    sessionIdRef.current = newId;
+    setMessages([]);
+    setProgressSteps([]);
+    setInput('');
+    setLoading(false);
+    followUpContextRef.current = null;
+    setMobileSidebarOpen(false);
+  }, [selectedStockCode]);
 
   const confirmDelete = useCallback(() => {
     if (!deleteConfirmId) return;
@@ -431,6 +457,7 @@ const ChatPage: React.FC = () => {
     setProgressSteps([]);
 
     const currentSessionId = sessionIdRef.current;
+    const isSessionStillActive = () => sessionIdRef.current === currentSessionId;
     const activeSelectedStockCode = isDefaultStockCode(selectedStockCode) ? '' : selectedStockCode;
     const inferredCode = activeSelectedStockCode || followUpContextRef.current?.stock_code || inferStockCodeFromText(msgText, knownCodes) || DEFAULT_STOCK_CODE;
 
@@ -513,7 +540,9 @@ const ChatPage: React.FC = () => {
             const data = JSON.parse(payloadLine) as ProgressStep & { error?: string; content?: string; message?: string };
             if (data.type === 'tool_start' || data.type === 'tool_done' || data.type === 'generating') {
               currentProgressSteps.push(data);
-              setProgressSteps([...currentProgressSteps]);
+              if (isSessionStillActive()) {
+                setProgressSteps([...currentProgressSteps]);
+              }
             } else if (data.type === 'done') {
               finalContent = data.content || '';
             } else if (data.type === 'error') {
@@ -535,23 +564,29 @@ const ChatPage: React.FC = () => {
         strategyName: usedStrategyName,
         thinkingSteps: [...currentProgressSteps],
       };
-      setMessages((previous) => [...previous, assistantMessage]);
+      if (isSessionStillActive()) {
+        setMessages((previous) => [...previous, assistantMessage]);
+      }
       loadSessions();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '发送失败';
-      setMessages((previous) => [
-        ...previous,
-        {
-          id: `${Date.now()}-error`,
-          role: 'assistant',
-          content: errorMessage,
-          strategy: usedStrategy,
-          strategyName: usedStrategyName,
-        },
-      ]);
+      if (isSessionStillActive()) {
+        setMessages((previous) => [
+          ...previous,
+          {
+            id: `${Date.now()}-error`,
+            role: 'assistant',
+            content: errorMessage,
+            strategy: usedStrategy,
+            strategyName: usedStrategyName,
+          },
+        ]);
+      }
     } finally {
-      setLoading(false);
-      setProgressSteps([]);
+      if (isSessionStillActive()) {
+        setLoading(false);
+        setProgressSteps([]);
+      }
     }
   };
 
@@ -652,10 +687,7 @@ const ChatPage: React.FC = () => {
             <button
               key={tab.code}
               type="button"
-              onClick={() => {
-                setSelectedStockCode(tab.code);
-                setMobileSidebarOpen(false);
-              }}
+              onClick={() => handleSelectStockTab(tab.code)}
               className={[
                 'w-full rounded-2xl border px-3 py-3 text-left transition-all',
                 selectedStockCode === tab.code
@@ -745,9 +777,9 @@ const ChatPage: React.FC = () => {
   );
 
   return (
-    <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-[1600px] gap-3 px-4 pb-6 pt-3 md:px-6 xl:grid-cols-[180px_300px_minmax(0,1fr)]">
-      <div className="hidden xl:block">{stockSidebar}</div>
-      <div className="hidden xl:block">{sessionSidebar}</div>
+    <div className="mx-auto grid h-[calc(100vh-4rem)] max-w-[1600px] gap-3 overflow-hidden px-4 pb-6 pt-3 md:px-6 xl:grid-cols-[180px_300px_minmax(0,1fr)]">
+      <div className="hidden min-h-0 xl:block">{stockSidebar}</div>
+      <div className="hidden min-h-0 xl:block">{sessionSidebar}</div>
 
       {mobileSidebarOpen ? (
         <div className="fixed inset-0 z-40 xl:hidden" onClick={() => setMobileSidebarOpen(false)}>
@@ -782,7 +814,7 @@ const ChatPage: React.FC = () => {
         </div>
       ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col xl:col-span-1">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col xl:col-span-1">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
           <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">策略问答</h1>
           <div className="flex flex-wrap items-center gap-2">
@@ -887,7 +919,7 @@ const ChatPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="relative z-10 custom-scrollbar flex-1 overflow-y-auto space-y-4 p-4 md:p-5">
+          <div className="relative z-10 custom-scrollbar flex-1 overflow-y-auto overscroll-contain space-y-4 p-4 md:p-5">
             {messages.length === 0 && !loading ? (
               <div className="flex h-full flex-col items-center justify-center text-center">
                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
