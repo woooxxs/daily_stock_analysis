@@ -24,7 +24,7 @@ from litellm import Router
 from src.agent.llm_adapter import get_thinking_extra_body
 from src.config import Config, get_config, get_api_keys_for_model, extra_litellm_params
 from src.storage import persist_llm_usage
-from src.data.stock_mapping import STOCK_NAME_MAP
+from src.data.stock_mapping import STOCK_NAME_MAP, is_meaningful_stock_name
 from src.schemas.report_schema import AnalysisReportSchema
 
 logger = logging.getLogger(__name__)
@@ -90,38 +90,6 @@ def apply_placeholder_fill(result: "AnalysisResult", missing_fields: List[str]) 
             if "sniper_points" not in result.dashboard["battle_plan"]:
                 result.dashboard["battle_plan"]["sniper_points"] = {}
             result.dashboard["battle_plan"]["sniper_points"]["stop_loss"] = "待补充"
-
-
-def is_meaningful_stock_name(name: Optional[str], stock_code: str) -> bool:
-    """Return whether a stock name is useful for display or caching."""
-    if not name:
-        return False
-
-    normalized_name = str(name).strip()
-    if not normalized_name:
-        return False
-
-    normalized_code = (stock_code or '').strip().upper()
-    if normalized_name.upper() == normalized_code:
-        return False
-
-    if normalized_name.startswith('股票'):
-        return False
-
-    placeholder_values = {
-        'N/A',
-        'NA',
-        'NONE',
-        'NULL',
-        '--',
-        '-',
-        'UNKNOWN',
-        'TICKER',
-    }
-    if normalized_name.upper() in placeholder_values:
-        return False
-
-    return True
 
 
 def normalize_trend_prediction_text(value: Optional[str]) -> str:

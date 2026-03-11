@@ -139,22 +139,26 @@ export function useSystemConfig() {
 
   const dirtyKeys = useMemo(() => {
     const keys: string[] = [];
-    for (const item of serverItems) {
-      const draftRaw = draftValues[item.key];
-      if (draftRaw === undefined) {
-        continue;
-      }
+    const keySet = new Set<string>([
+      ...serverItems.map((item) => item.key),
+      ...Object.keys(draftValues),
+      ...Object.keys(draftEnabled),
+    ]);
 
-      const normalizedDraft = normalizeFieldValue(draftRaw, item.schema);
-      const normalizedCurrent = normalizeFieldValue(item.value, item.schema);
-      const currentEnabled = !item.isCommented;
-      const nextEnabled = draftEnabled[item.key] ?? currentEnabled;
+    for (const key of keySet) {
+      const item = serverItemByKey[key];
+      const currentValue = item?.value ?? '';
+      const currentEnabled = item ? !item.isCommented : false;
+      const draftRaw = draftValues[key] ?? currentValue;
+      const normalizedDraft = normalizeFieldValue(draftRaw, item?.schema);
+      const normalizedCurrent = normalizeFieldValue(currentValue, item?.schema);
+      const nextEnabled = draftEnabled[key] ?? currentEnabled;
       if (normalizedDraft !== normalizedCurrent || nextEnabled !== currentEnabled) {
-        keys.push(item.key);
+        keys.push(key);
       }
     }
     return keys;
-  }, [draftEnabled, draftValues, serverItems]);
+  }, [draftEnabled, draftValues, serverItemByKey, serverItems]);
 
   const hasDirty = dirtyKeys.length > 0;
 
@@ -243,8 +247,8 @@ export function useSystemConfig() {
     return dirtyKeys
       .map((key) => {
         const serverItem = serverItemByKey[key];
-        const normalizedValue = normalizeFieldValue(draftValues[key] ?? '', serverItem?.schema);
-        const currentEnabled = serverItem ? !serverItem.isCommented : true;
+        const normalizedValue = normalizeFieldValue(draftValues[key] ?? serverItem?.value ?? '', serverItem?.schema);
+        const currentEnabled = serverItem ? !serverItem.isCommented : false;
         const nextEnabled = draftEnabled[key] ?? currentEnabled;
         return {
           key,
@@ -255,7 +259,7 @@ export function useSystemConfig() {
       .filter((item) => {
         const serverItem = serverItemByKey[item.key];
         const normalizedCurrent = normalizeFieldValue(serverItem?.value ?? '', serverItem?.schema);
-        const currentEnabled = serverItem ? !serverItem.isCommented : true;
+        const currentEnabled = serverItem ? !serverItem.isCommented : false;
         return item.value !== normalizedCurrent || item.enabled !== undefined && item.enabled !== currentEnabled;
       });
   }, [dirtyKeys, draftEnabled, draftValues, serverItemByKey]);
@@ -365,6 +369,8 @@ export function useSystemConfig() {
     setActiveCategory,
     hasDirty,
     dirtyCount: dirtyKeys.length,
+    draftValues,
+    draftEnabled,
     toast,
     clearToast,
 

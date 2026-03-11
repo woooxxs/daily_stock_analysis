@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BellRing,
   Bot,
@@ -20,7 +20,6 @@ import {
   ApiErrorAlert,
   AppPage,
   Button,
-  Collapsible,
   EmptyState,
   PageHeader,
   SectionCard,
@@ -28,6 +27,7 @@ import {
   ToastViewport,
 } from '../components/common';
 import {
+  AiProviderConfigManager,
   AuthManagementCard,
   ChangePasswordCard,
   DataSourceManager,
@@ -38,6 +38,13 @@ import {
   SettingsLoading,
   SmartModelAddDialog,
 } from '../components/settings';
+import {
+  AI_BRAND_DEFINITIONS,
+  AI_TOP_KEYS,
+  collectVisibleAiBrandIds,
+  mergeAiItemsWithVirtualEntries,
+  type AiBrandId,
+} from '../components/settings/modelConfigShared';
 import type { SystemConfigItem } from '../types/systemConfig';
 import { cn } from '../utils/cn';
 
@@ -62,7 +69,6 @@ type SettingsSection = {
 
 const STOCK_LIST_HINT = '自选股列表请到首页工作台维护。';
 const STOCK_LIST_KEYS = new Set(['STOCK_LIST']);
-const VISION_KEYS = new Set(['VISION_MODEL', 'VISION_PROVIDER_PRIORITY', 'OPENAI_VISION_MODEL']);
 const DATA_SOURCE_MANAGER_KEYS = new Set([
   'TUSHARE_TOKEN',
   'TAVILY_API_KEYS',
@@ -196,6 +202,8 @@ const SettingsPage: React.FC = () => {
     issueByKey,
     hasDirty,
     dirtyCount,
+    draftValues,
+    draftEnabled,
     toast,
     clearToast,
     isLoading,
@@ -213,6 +221,7 @@ const SettingsPage: React.FC = () => {
     maskToken,
   } = useSystemConfig();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('ai-model');
+  const [manualAiBrandIds, setManualAiBrandIds] = useState<AiBrandId[]>([]);
 
   useEffect(() => {
     void load();
@@ -226,10 +235,38 @@ const SettingsPage: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [clearToast, toast]);
 
-  const aiItems = useMemo(() => items.filter((item) => item.schema?.category === 'ai_model'), [items]);
-  const visionItems = useMemo(() => items.filter((item) => VISION_KEYS.has(item.key)), [items]);
-  const aiSupplementalItems = useMemo(
-    () => aiItems.filter((item) => !matchesAiManagedKey(item.key) && !VISION_KEYS.has(item.key)),
+  useEffect(() => {
+    setManualAiBrandIds([]);
+  }, [configVersion]);
+
+  const handleAddAiBrand = useCallback((brandId: AiBrandId) => {
+    setManualAiBrandIds((previous) => previous.includes(brandId) ? previous : [...previous, brandId]);
+  }, []);
+
+  const handleSetAiBrandVisible = useCallback((brandId: AiBrandId, visible: boolean) => {
+    setManualAiBrandIds((previous) => {
+      if (visible) {
+        return previous.includes(brandId) ? previous : [...previous, brandId];
+      }
+      return previous.filter((entry) => entry !== brandId);
+    });
+  }, []);
+
+  const rawAiItems = useMemo(() => items.filter((item) => item.schema?.category === 'ai_model'), [items]);
+  const aiItems = useMemo(
+    () => mergeAiItemsWithVirtualEntries(rawAiItems, draftValues, draftEnabled),
+    [draftEnabled, draftValues, rawAiItems],
+  );
+  const visibleAiBrandIds = useMemo(
+    () => collectVisibleAiBrandIds(aiItems, manualAiBrandIds),
+    [aiItems, manualAiBrandIds],
+  );
+  const availableAiBrandIds = useMemo(
+    () => AI_BRAND_DEFINITIONS.filter((definition) => !visibleAiBrandIds.includes(definition.id)).map((definition) => definition.id),
+    [visibleAiBrandIds],
+  );
+  const aiTopItems = useMemo(
+    () => aiItems.filter((item) => AI_TOP_KEYS.includes(item.key as (typeof AI_TOP_KEYS)[number])),
     [aiItems],
   );
   const dataSourceItems = useMemo(() => items.filter((item) => DATA_SOURCE_MANAGER_KEYS.has(item.key)), [items]);
@@ -255,21 +292,22 @@ const SettingsPage: React.FC = () => {
 
   const handledKeys = useMemo(() => {
     const next = new Set<string>();
-    [...aiItems, ...visionItems, ...dataSourceItems, ...dataSourceConfigItems, ...proxyItems, ...notificationItems, ...reportSettingItems, ...websiteItems, ...backtestItems, ...agentItems, ...securityFieldItems, ...scheduleItems].forEach((item) => {
+    [...rawAiItems, ...dataSourceItems, ...dataSourceConfigItems, ...proxyItems, ...notificationItems, ...reportSettingItems, ...websiteItems, ...backtestItems, ...agentItems, ...securityFieldItems, ...scheduleItems].forEach((item) => {
       next.add(item.key);
     });
     dataSourcePriorityItems.forEach((item) => next.add(item.key));
     HIDDEN_GENERIC_KEYS.forEach((key) => next.add(key));
     return next;
-  }, [aiItems, dataSourceItems, dataSourcePriorityItems, dataSourceConfigItems, notificationItems, reportSettingItems, proxyItems, scheduleItems, securityFieldItems, visionItems, websiteItems, backtestItems, agentItems]);
+  }, [rawAiItems, dataSourceItems, dataSourcePriorityItems, dataSourceConfigItems, notificationItems, reportSettingItems, proxyItems, scheduleItems, securityFieldItems, websiteItems, backtestItems, agentItems]);
 
   const otherItems = useMemo(
     () => items.filter((item) => !handledKeys.has(item.key) && !matchesAiManagedKey(item.key) && !matchesNotificationManagedKey(item.key)),
     [handledKeys, items],
   );
+  const aiSectionCount = aiTopItems.length + visibleAiBrandIds.length;
 
   const sections = useMemo<SettingsSection[]>(() => [
-    { id: 'ai-model', title: 'AI 模型', icon: Cpu, count: aiItems.length },
+    { id: 'ai-model', title: 'AI 模型', icon: Cpu, count: aiSectionCount },
     { id: 'data-source', title: '数据源', icon: Database, count: dataSourceItems.length },
     { id: 'notification', title: '通知渠道', icon: BellRing, count: notificationItems.length + reportSettingItems.length },
     { id: 'backtest', title: '回测设置', icon: FlaskConical, count: backtestItems.length },
@@ -279,7 +317,7 @@ const SettingsPage: React.FC = () => {
     { id: 'website', title: '网站设置', icon: Globe, count: websiteItems.length },
     { id: 'proxy', title: '代理设置', icon: Settings2, count: proxyItems.length },
     { id: 'other', title: '其他设置', icon: SlidersHorizontal, count: otherItems.length },
-  ], [aiItems.length, dataSourceItems.length, notificationItems.length, reportSettingItems.length, otherItems.length, proxyItems.length, scheduleItems.length, securityFieldItems.length, websiteItems.length, backtestItems.length, agentItems.length, visionItems.length]);
+  ], [aiSectionCount, dataSourceItems.length, notificationItems.length, reportSettingItems.length, otherItems.length, proxyItems.length, scheduleItems.length, securityFieldItems.length, websiteItems.length, backtestItems.length, agentItems.length]);
 
   const toastItems = toast ? [{ id: 1, type: toast.type, title: toast.type === 'error' ? toast.error.title : undefined, message: toast.type === 'error' ? toast.error.message : toast.message }] : [];
 
@@ -289,47 +327,44 @@ const SettingsPage: React.FC = () => {
         return (
           <div className="space-y-5">
             <SectionCard
-              title="快速配置"
-              description="从一个入口快速添加模型渠道或 MiniMax 扩展能力。普通用户只需要先选类型、提供商，再补 API Key 与模型列表。"
+              title="模型路由"
+              description="顶部只保留主模型、备选模型和视觉模型设置；新增品牌后，下面会按真实配置路径展示对应条目。"
               actions={(
                 <SmartModelAddDialog
                   items={aiItems}
                   configVersion={configVersion}
                   maskToken={maskToken}
                   disabled={isSaving || isLoading}
-                  onSaved={() => void load()}
+                  onSaved={() => undefined}
+                  onAddBrand={handleAddAiBrand}
+                  availableBrandIds={availableAiBrandIds}
                 />
               )}
+              contentClassName="p-0"
             >
-              <div className="space-y-3 text-sm text-muted-foreground">
-                <p>快速配置主写 `LLM_CHANNELS` 与 `LLM_&lt;NAME&gt;_*`，不会自动同步旧版兼容 key。</p>
-                <p>如果你已经在其他栏目有未保存的修改，建议先保存当前页面，再添加新模型，避免刷新后丢失草稿。</p>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="已配置模型" description="这里用于查看与手动维护现有模型渠道、主模型、备选模型和视觉模型。" contentClassName="p-0">
               <LLMChannelEditor
                 key={configVersion || 'llm-editor'}
                 items={aiItems}
-                configVersion={configVersion}
-                maskToken={maskToken}
-                onSaved={() => void load()}
-                onChangeVision={setDraftValue}
-                visionItems={visionItems}
+                onChangeField={setDraftValue}
                 disabled={isSaving || isLoading}
               />
             </SectionCard>
 
-            {aiSupplementalItems.length ? (
-              <SectionCard
-                title="兼容密钥与高级参数"
-                description="这些键继续支持手工维护；快速添加不会自动同步到这里。适合直接编辑旧版 `OPENAI_* / DEEPSEEK_* / GEMINI_* / ANTHROPIC_*` 与 MiniMax 扩展能力。"
-              >
-                <Collapsible title="展开手工维护区" defaultOpen={false}>
-                  {renderFieldList(aiSupplementalItems, issueByKey, isSaving, setDraftValue)}
-                </Collapsible>
-              </SectionCard>
-            ) : null}
+            <SectionCard
+              title="已配置模型"
+              description="每个品牌卡片都严格按 `.env.example` 的真实配置路径收口，不再按兼容 / 高级拆开。"
+              contentClassName="p-0"
+            >
+              <AiProviderConfigManager
+                items={aiItems}
+                issueByKey={issueByKey}
+                onChange={setDraftValue}
+                onToggleEnabled={setDraftItemEnabled}
+                manualVisibleBrandIds={manualAiBrandIds}
+                onSetManualVisible={handleSetAiBrandVisible}
+                disabled={isSaving || isLoading}
+              />
+            </SectionCard>
           </div>
         );
       case 'data-source':

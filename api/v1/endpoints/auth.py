@@ -102,6 +102,11 @@ def _apply_auth_enabled(enabled: bool) -> None:
     refresh_auth_state()
 
 
+def _password_set_for_response(auth_enabled: bool) -> bool:
+    """Avoid exposing stored-password state when auth is disabled."""
+    return is_password_set() if auth_enabled else False
+
+
 @router.get(
     "/status",
     summary="Get auth status",
@@ -117,7 +122,7 @@ async def auth_status(request: Request):
     return {
         "authEnabled": auth_enabled,
         "loggedIn": logged_in,
-        "passwordSet": has_stored_password(),
+        "passwordSet": _password_set_for_response(auth_enabled),
         "passwordChangeable": is_password_changeable() if auth_enabled else False,
     }
 
@@ -172,7 +177,7 @@ async def auth_update_settings(request: Request, body: AuthSettingsRequest):
             content={
                 "authEnabled": True,
                 "loggedIn": True,
-                "passwordSet": has_stored_password(),
+                "passwordSet": _password_set_for_response(True),
                 "passwordChangeable": True,
             }
         )
@@ -192,7 +197,7 @@ async def auth_update_settings(request: Request, body: AuthSettingsRequest):
         content={
             "authEnabled": False,
             "loggedIn": False,
-            "passwordSet": has_stored_password(),
+            "passwordSet": _password_set_for_response(False),
             "passwordChangeable": False,
         }
     )

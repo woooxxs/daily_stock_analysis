@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - 🎨 **Tailwind Plus-style admin refresh** — unified Shell, Home, Settings, Backtest, History, and report surfaces into a light-first application UI with shared cards, tables, alerts, and empty states
 - 🧭 **Settings and detail-screen refinement** — rebuilt the settings area into a left-nav management console, added sticky save actions, and aligned stock history/detail views with the same admin information hierarchy
 - 🔐 **Settings-managed password auth** — added a dedicated settings card to enable/disable admin password login, initialize passwords from the settings page, and confirm auth shutdown without requiring password re-entry
-- 🧭 **Single-entry AI model setup** — AI settings now center around one quick add flow for model channels and MiniMax extension keys, while legacy compatibility env keys move into a collapsed manual-maintenance section
+- 🧭 **Brand-grouped AI model setup** — AI settings now keep only model routing at the top and group configured providers below as brand cards built from real `.env.example` paths, including OpenAI-compatible routing for DeepSeek / Qwen / GLM / Moonshot
 - 📝 **Dedicated report settings panel** — notification settings now collapse `REPORT_*` behind a single report-settings entry with icon-based summaries on the main screen and a dedicated detail panel for editing
 
 ### Fixed
@@ -59,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - 📝 Added notes about the Tailwind Plus-style visual baseline, unified light/dark themes, and the new settings/detail screen structure
 - 📝 Documented the strategy chat model selector, stock-name sidebar labels, and the default grouping behavior for unmatched chat sessions
 - 📝 Clarified that frontend Docker releases should verify `npm run lint`, `npm run build`, and refreshed `static/` assets before deployment
-- 📝 Documented the single-entry AI model quick-add flow, the MiniMax extension placement, and the new notification-side report settings split
+- 📝 Documented the brand-grouped AI model cards, the compatible-path routing rules for OpenAI-style providers, and the new notification-side report settings split
 
 ## [3.4.9] - 2026-03-06
 

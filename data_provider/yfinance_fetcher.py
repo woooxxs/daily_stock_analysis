@@ -35,7 +35,7 @@ from tenacity import (
 from .base import BaseFetcher, DataFetchError, STANDARD_COLUMNS, is_bse_code
 from .realtime_types import UnifiedRealtimeQuote, RealtimeSource
 from .us_index_mapping import get_us_index_yf_symbol, is_us_index_code, is_us_stock_code
-from src.analyzer import STOCK_NAME_MAP, is_meaningful_stock_name
+from src.data.stock_mapping import STOCK_NAME_MAP, is_meaningful_stock_name
 import os
 
 logger = logging.getLogger(__name__)

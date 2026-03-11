@@ -10,3 +10,4 @@ export * from './SettingsLoading';
 export * from './NotificationChannelManager';
 export * from './SmartModelAddDialog';
 export * from './ReportSettingsManager';
+export * from './AiProviderConfigManager';

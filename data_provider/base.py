@@ -30,8 +30,7 @@ from tenacity import (
     retry_if_exception_type,
 )
 
-from src.analyzer import is_meaningful_stock_name
-from src.data.stock_mapping import STOCK_NAME_MAP
+from src.data.stock_mapping import STOCK_NAME_MAP, is_meaningful_stock_name
 
 # 配置日志
 logger = logging.getLogger(__name__)

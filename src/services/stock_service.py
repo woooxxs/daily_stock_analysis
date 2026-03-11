@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 
 from src.repositories.stock_repo import StockRepository
-from src.analyzer import STOCK_NAME_MAP, is_meaningful_stock_name
+from src.data.stock_mapping import STOCK_NAME_MAP, is_meaningful_stock_name
 
 logger = logging.getLogger(__name__)
 
