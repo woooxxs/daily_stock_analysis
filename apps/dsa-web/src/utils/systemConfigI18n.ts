@@ -261,7 +261,7 @@ export function getCategoryDescriptionZh(category: SystemConfigCategory, fallbac
 
 export function getFieldTitleZh(key: string, fallback?: string): string {
   const zh = fieldTitleMap[key];
-  if (zh) return `${zh} (${key})`;
+  if (zh) return zh;
   return fallback || key;
 }
 

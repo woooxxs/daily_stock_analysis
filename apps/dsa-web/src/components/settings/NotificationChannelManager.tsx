@@ -32,6 +32,7 @@ type NotificationChannelManagerProps = {
   onChange: (key: string, value: string) => void;
   onToggleEnabled: (key: string, enabled: boolean) => void;
   disabled?: boolean;
+  headerActions?: React.ReactNode;
 };
 
 const CHANNEL_DEFS: NotificationChannelDef[] = [
@@ -151,6 +152,7 @@ export const NotificationChannelManager: React.FC<NotificationChannelManagerProp
   onChange,
   onToggleEnabled,
   disabled = false,
+  headerActions,
 }) => {
   const itemsByKey = useMemo(() => buildItemsByKey(items), [items]);
   const configuredIds = useMemo(
@@ -236,9 +238,10 @@ export const NotificationChannelManager: React.FC<NotificationChannelManagerProp
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-background/70 p-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="text-base font-semibold text-foreground">通知渠道</h3>
-          <p className="mt-1 text-sm text-muted-foreground">这里只处理推送渠道本身的凭证与启停；报告相关参数已独立到上方“报告设置”。</p>
+          <p className="mt-1 text-sm text-muted-foreground">按需添加通知方式并填写凭证。</p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          {headerActions}
           <Select
             value={selectedAddId}
             onChange={setSelectedAddId}
@@ -318,17 +321,20 @@ export const NotificationChannelManager: React.FC<NotificationChannelManagerProp
                   </div>
                 </div>
 
-                <div className={['mt-4 space-y-3', isEnabled ? '' : 'pointer-events-none opacity-60'].join(' ')}>
-                  {channelItems.map((item) => (
-                    <SettingsField
-                      key={item.key}
-                      item={item}
-                      value={item.value}
-                      disabled={disabled || !isEnabled}
-                      onChange={onChange}
-                      issues={issueByKey[item.key] || []}
-                    />
-                  ))}
+                <div className={['mt-5 border-t border-border/80', isEnabled ? '' : 'pointer-events-none opacity-60'].join(' ')}>
+                  <div className="divide-y divide-border/80">
+                    {channelItems.map((item) => (
+                      <SettingsField
+                        key={item.key}
+                        item={item}
+                        value={item.value}
+                        disabled={disabled || !isEnabled}
+                        onChange={onChange}
+                        issues={issueByKey[item.key] || []}
+                        variant="embedded"
+                      />
+                    ))}
+                  </div>
                 </div>
               </section>
             );

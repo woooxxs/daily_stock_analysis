@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type React from 'react';
+import { Info } from 'lucide-react';
 import { EyeToggleIcon, Select } from '../common';
 import type { ConfigValidationIssue, SystemConfigItem } from '../../types/systemConfig';
 import { getFieldDescriptionZh, getFieldTitleZh } from '../../utils/systemConfigI18n';
@@ -29,6 +30,7 @@ interface SettingsFieldProps {
   managedHint?: string;
   onChange: (key: string, value: string) => void;
   issues?: ConfigValidationIssue[];
+  variant?: 'card' | 'embedded';
 }
 
 function renderFieldControl(
@@ -193,6 +195,7 @@ export const SettingsField: React.FC<SettingsFieldProps> = ({
   managedHint,
   onChange,
   issues = [],
+  variant = 'card',
 }) => {
   const schema = item.schema;
   const title = getFieldTitleZh(item.key, item.key);
@@ -203,96 +206,118 @@ export const SettingsField: React.FC<SettingsFieldProps> = ({
   const [isSecretVisible, setIsSecretVisible] = useState(false);
   const [isPasswordEditable, setIsPasswordEditable] = useState(false);
 
-  return (
-    <div
-      className={[
+  const containerClassName = variant === 'embedded'
+    ? [
+        'grid gap-4 px-1 py-5 md:grid-cols-[220px_minmax(0,1fr)] md:gap-6',
+        hasError
+          ? 'bg-destructive/[0.03]'
+          : hasWarning
+            ? 'bg-warning/[0.03]'
+            : '',
+      ].join(' ')
+    : [
         'rounded-[24px] border p-4 shadow-sm transition-all md:p-5',
         hasError
           ? 'border-destructive/30 bg-destructive/[0.04]'
           : hasWarning
             ? 'border-warning/30 bg-warning/[0.04]'
             : 'border-border bg-background/70 hover:border-primary/20 hover:bg-background/90',
-      ].join(' ')}
-    >
-      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,260px)_1fr] lg:gap-6">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-            {schema?.isRequired ? (
-              <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
-                必填
-              </span>
-            ) : null}
-            {schema?.isSensitive ? (
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                敏感字段
-              </span>
-            ) : null}
-            {hasError ? (
-              <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
-                错误
-              </span>
-            ) : null}
-            {!hasError && hasWarning ? (
-              <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
-                提示
-              </span>
-            ) : null}
-          </div>
+      ].join(' ');
 
-          {description ? <p className="text-sm leading-6 text-muted-foreground">{description}</p> : null}
-
-          <div className="flex flex-wrap gap-2 text-[11px] font-medium text-muted-foreground">
-            <span className="rounded-full border border-border bg-card px-2.5 py-1">{schema?.uiControl ?? 'text'}</span>
-            <span className="rounded-full border border-border bg-card px-2.5 py-1">{schema?.dataType ?? 'string'}</span>
-            {isManagedExternally ? (
-              <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-primary">工作台管理</span>
-            ) : schema?.isEditable ? (
-              <span className="rounded-full border border-success/20 bg-success/10 px-2.5 py-1 text-success">可编辑</span>
-            ) : (
-              <span className="rounded-full border border-border bg-card px-2.5 py-1">只读</span>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {renderFieldControl(
-            item,
-            value,
-            disabled || isManagedExternally,
-            (val) => onChange(item.key, val),
-            isSecretVisible,
-            () => setIsSecretVisible(!isSecretVisible),
-            isPasswordEditable,
-            () => setIsPasswordEditable(true),
-          )}
-
-          {managedHint ? <p className="text-xs leading-6 text-primary">{managedHint}</p> : null}
-
-          {schema?.isSensitive ? (
-            <p className="text-xs leading-6 text-muted-foreground">
-              敏感字段默认保持遮罩，聚焦后即可开始编辑；保存前请再次确认内容无误。
-            </p>
-          ) : null}
-
-          {issues.length ? (
-            <div className="space-y-2">
-              {issues.map((issue, index) => (
-                <div
-                  key={index}
-                  className={[
-                    'rounded-2xl border px-3 py-2 text-xs leading-6',
-                    issue.severity === 'error'
-                      ? 'border-destructive/20 bg-destructive/10 text-destructive'
-                      : 'border-warning/20 bg-warning/10 text-warning',
-                  ].join(' ')}
-                >
-                  {issue.message}
-                </div>
-              ))}
+  return (
+    <div className={containerClassName}>
+      <div className="space-y-3">
+        <div className="flex items-start gap-2">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+              {schema?.isRequired ? (
+                <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+                  必填
+                </span>
+              ) : null}
+              {schema?.isSensitive ? (
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                  敏感字段
+                </span>
+              ) : null}
+              {hasError ? (
+                <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+                  错误
+                </span>
+              ) : null}
+              {!hasError && hasWarning ? (
+                <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
+                  提示
+                </span>
+              ) : null}
             </div>
+
+            <p className="mt-1 text-xs text-muted-foreground">{item.key}</p>
+            {variant !== 'embedded' && description ? <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p> : null}
+
+            {variant !== 'embedded' ? (
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-medium text-muted-foreground">
+                <span className="rounded-full border border-border bg-card px-2.5 py-1">{schema?.uiControl ?? 'text'}</span>
+                <span className="rounded-full border border-border bg-card px-2.5 py-1">{schema?.dataType ?? 'string'}</span>
+                {isManagedExternally ? (
+                  <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-primary">工作台管理</span>
+                ) : schema?.isEditable ? (
+                  <span className="rounded-full border border-success/20 bg-success/10 px-2.5 py-1 text-success">可编辑</span>
+                ) : (
+                  <span className="rounded-full border border-border bg-card px-2.5 py-1">只读</span>
+                )}
+              </div>
+            ) : null}
+          </div>
+          {variant === 'embedded' && description ? (
+            <span className="group relative mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-muted-foreground">
+              <Info size={12} />
+              <span className="pointer-events-none absolute left-1/2 top-6 z-20 w-64 -translate-x-1/2 rounded-xl border border-border bg-popover px-3 py-2 text-xs text-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+                {description}
+              </span>
+            </span>
           ) : null}
         </div>
+      </div>
+
+      <div className="space-y-3">
+        {renderFieldControl(
+          item,
+          value,
+          disabled || isManagedExternally,
+          (val) => onChange(item.key, val),
+          isSecretVisible,
+          () => setIsSecretVisible(!isSecretVisible),
+          isPasswordEditable,
+          () => setIsPasswordEditable(true),
+        )}
+
+        {managedHint ? <p className="text-xs leading-6 text-primary">{managedHint}</p> : null}
+
+        {schema?.isSensitive ? (
+          <p className="text-xs leading-6 text-muted-foreground">
+            敏感字段默认保持遮罩，聚焦后即可开始编辑；保存前请再次确认内容无误。
+          </p>
+        ) : null}
+
+        {issues.length ? (
+          <div className="space-y-2">
+            {issues.map((issue, index) => (
+              <div
+                key={index}
+                className={[
+                  'rounded-2xl border px-3 py-2 text-xs leading-6',
+                  issue.severity === 'error'
+                    ? 'border-destructive/20 bg-destructive/10 text-destructive'
+                    : 'border-warning/20 bg-warning/10 text-warning',
+                ].join(' ')}
+              >
+                {issue.message}
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );

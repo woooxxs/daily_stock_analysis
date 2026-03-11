@@ -32,6 +32,7 @@ type CompactConfigFieldProps = {
   titleOverride?: string;
   descriptionOverride?: string;
   variant?: 'card' | 'embedded';
+  showKey?: boolean;
 };
 
 export const CompactConfigField: React.FC<CompactConfigFieldProps> = ({
@@ -43,7 +44,9 @@ export const CompactConfigField: React.FC<CompactConfigFieldProps> = ({
   titleOverride,
   descriptionOverride,
   variant = 'card',
+  showKey = true,
 }) => {
+  const shouldShowKey = showKey;
   const schema = item.schema;
   const label = titleOverride || getFieldTitleZh(item.key, item.key);
   const helpText = descriptionOverride ?? getFieldDescriptionZh(item.key);
@@ -199,12 +202,12 @@ export const CompactConfigField: React.FC<CompactConfigFieldProps> = ({
       <div className="flex items-start gap-2">
         <div>
           <p className="text-sm font-semibold text-foreground">{label}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{item.key}</p>
-          {variant === 'embedded' && helpText ? (
+          {shouldShowKey ? <p className="mt-1 text-xs text-muted-foreground">{item.key}</p> : null}
+          {variant !== 'embedded' && helpText ? (
             <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">{helpText}</p>
           ) : null}
         </div>
-        {variant !== 'embedded' && helpText ? (
+        {helpText ? (
           <span className="group relative mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-muted-foreground">
             <Info size={12} />
             <span className="pointer-events-none absolute left-1/2 top-6 z-20 w-64 -translate-x-1/2 rounded-xl border border-border bg-popover px-3 py-2 text-xs text-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">

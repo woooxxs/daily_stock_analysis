@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
-import { Check, ChevronDown, Settings2, Sparkles } from 'lucide-react';
+import { Check, ChevronDown, Eye, Sparkles, X } from 'lucide-react';
 import type { SystemConfigItem } from '../../types/systemConfig';
 import { cn } from '../../utils/cn';
 import { Button, Select } from '../common';
@@ -9,6 +9,12 @@ import { CompactConfigField } from './CompactConfigField';
 import { buildItemsByKey, collectKnownModels, parseModelNames } from './modelConfigShared';
 
 type LLMChannelEditorProps = {
+  items: SystemConfigItem[];
+  onChangeField: (key: string, value: string) => void;
+  disabled?: boolean;
+};
+
+type VisionModelDialogButtonProps = {
   items: SystemConfigItem[];
   onChangeField: (key: string, value: string) => void;
   disabled?: boolean;
@@ -213,6 +219,111 @@ function renderTopFieldCard(title: string, keyName: string, control: React.React
   );
 }
 
+function renderVisionFormRow(title: string, keyName: string, description: string, control: React.ReactNode) {
+  return (
+    <div className="grid gap-4 px-1 py-5 md:grid-cols-[220px_minmax(0,1fr)] md:gap-6">
+      <div>
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{keyName}</p>
+        <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">{description}</p>
+      </div>
+      <div className="space-y-2">{control}</div>
+    </div>
+  );
+}
+
+export const VisionModelDialogButton: React.FC<VisionModelDialogButtonProps> = ({
+  items,
+  onChangeField,
+  disabled = false,
+}) => {
+  const itemsByKey = useMemo(() => buildItemsByKey(items), [items]);
+  const availableModels = useMemo(() => collectKnownModels(items), [items]);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const visionModelItem = itemsByKey.VISION_MODEL;
+  const visionPriorityItem = itemsByKey.VISION_PROVIDER_PRIORITY;
+  const openAIVisionItem = itemsByKey.OPENAI_VISION_MODEL;
+
+  const modelOptions = useMemo<SelectOption[]>(() => [
+    { value: '', label: '不指定' },
+    ...availableModels.map((model) => ({ value: model, label: model })),
+  ], [availableModels]);
+
+  if (!visionModelItem && !visionPriorityItem && !openAIVisionItem) {
+    return null;
+  }
+
+  return (
+    <>
+      <Button type="button" variant="secondary" onClick={() => setIsOpen(true)} disabled={disabled}>
+        <Eye className="h-4 w-4" />
+        视觉模型
+      </Button>
+
+      {isOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={() => setIsOpen(false)}>
+          <div className="w-full max-w-3xl rounded-3xl border border-border bg-card p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">视觉模型</h3>
+                <p className="mt-2 text-sm text-muted-foreground">在这里统一维护视觉模型、回退提供商顺序和兼容视觉模型别名。</p>
+              </div>
+              <Button type="button" variant="secondary" onClick={() => setIsOpen(false)}>
+                <X className="h-4 w-4" />
+                关闭
+              </Button>
+            </div>
+
+            <div className="mt-5 border-t border-border/80">
+              <div className="divide-y divide-border/80">
+                {visionModelItem ? renderVisionFormRow(
+                  '视觉模型',
+                  'VISION_MODEL',
+                  '图片识别专用模型，可与主模型分开配置。',
+                  <Select
+                    value={visionModelItem.value}
+                    onChange={(value) => onChangeField('VISION_MODEL', value)}
+                    options={modelOptions}
+                    disabled={disabled}
+                    searchable
+                    autoFocusSearch={false}
+                    className="w-full"
+                  />,
+                ) : null}
+
+                {visionPriorityItem ? renderVisionFormRow(
+                  '视觉提供商优先级',
+                  'VISION_PROVIDER_PRIORITY',
+                  '按供应商顺序填写回退链路，默认建议保持 `gemini,anthropic,openai`。',
+                  <input
+                    type="text"
+                    className="input-terminal w-full"
+                    value={visionPriorityItem.value}
+                    onChange={(event) => onChangeField('VISION_PROVIDER_PRIORITY', event.target.value)}
+                    placeholder={PROVIDER_PRIORITY_PLACEHOLDER}
+                    disabled={disabled}
+                  />,
+                ) : null}
+
+                {openAIVisionItem ? (
+                  <CompactConfigField
+                    item={openAIVisionItem}
+                    value={openAIVisionItem.value}
+                    disabled={disabled}
+                    onChange={onChangeField}
+                    variant="embedded"
+                  />
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+};
+
 export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
   items,
   onChangeField,
@@ -220,13 +331,9 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
 }) => {
   const itemsByKey = useMemo(() => buildItemsByKey(items), [items]);
   const availableModels = useMemo(() => collectKnownModels(items), [items]);
-  const [showVisionCompatDialog, setShowVisionCompatDialog] = useState(false);
 
   const mainModelItem = itemsByKey.LITELLM_MODEL;
   const fallbackModelsItem = itemsByKey.LITELLM_FALLBACK_MODELS;
-  const visionModelItem = itemsByKey.VISION_MODEL;
-  const visionPriorityItem = itemsByKey.VISION_PROVIDER_PRIORITY;
-  const openAIVisionItem = itemsByKey.OPENAI_VISION_MODEL;
 
   const modelOptions = useMemo<SelectOption[]>(() => [
     { value: '', label: '不指定' },
@@ -237,11 +344,6 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
 
   return (
     <div className="space-y-4 p-5">
-      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-background/70 p-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h3 className="text-base font-semibold text-foreground">主模型 / 备选模型 / 视觉模型</h3>
-          <p className="mt-1 text-sm text-muted-foreground">主模型改为单选下拉，备选模型改为多选下拉；视觉兼容项收进独立按钮里。</p>
-        </div>
         {availableModels.length ? (
           <div className="max-w-xl">
             <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -257,7 +359,6 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
             </div>
           </div>
         ) : null}
-      </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
         {mainModelItem ? renderTopFieldCard(
@@ -288,70 +389,6 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
           '可同时选择多个备选模型，保存时会写回逗号分隔值。',
         ) : null}
       </div>
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        {visionModelItem ? renderTopFieldCard(
-          '视觉模型',
-          'VISION_MODEL',
-          <Select
-            value={visionModelItem.value}
-            onChange={(value) => onChangeField('VISION_MODEL', value)}
-            options={modelOptions}
-            disabled={disabled}
-            searchable
-            autoFocusSearch={false}
-            className="w-full"
-          />,
-          '图片识别专用模型，可与主模型分开配置。',
-        ) : null}
-
-        <div className="space-y-3 rounded-2xl border border-border bg-background/60 p-4">
-          <div>
-            <p className="text-sm font-semibold text-foreground">视觉提供商优先级</p>
-            <p className="mt-1 text-xs text-muted-foreground">VISION_PROVIDER_PRIORITY</p>
-            <p className="mt-2 text-sm text-muted-foreground">按供应商顺序填写回退链路，兼容视觉模型通过按钮单独配置。</p>
-          </div>
-          <input
-            type="text"
-            className="input-terminal w-full"
-            value={visionPriorityItem?.value || ''}
-            onChange={(event) => onChangeField('VISION_PROVIDER_PRIORITY', event.target.value)}
-            placeholder={PROVIDER_PRIORITY_PLACEHOLDER}
-            disabled={disabled || !visionPriorityItem}
-          />
-          {openAIVisionItem ? (
-            <Button type="button" variant="secondary" onClick={() => setShowVisionCompatDialog(true)} disabled={disabled}>
-              <Settings2 className="h-4 w-4" />
-              兼容视觉模型
-            </Button>
-          ) : null}
-        </div>
-      </div>
-
-      {showVisionCompatDialog && openAIVisionItem ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={() => setShowVisionCompatDialog(false)}>
-          <div className="w-full max-w-2xl rounded-3xl border border-border bg-card p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">视觉兼容配置</h3>
-                <p className="mt-2 text-sm text-muted-foreground">这里单独维护 `OPENAI_VISION_MODEL`，避免和主视觉配置混在一起。</p>
-              </div>
-              <Button type="button" variant="secondary" onClick={() => setShowVisionCompatDialog(false)}>
-                关闭
-              </Button>
-            </div>
-
-            <div className="mt-5 space-y-2">
-              <CompactConfigField
-                item={openAIVisionItem}
-                value={openAIVisionItem.value}
-                disabled={disabled}
-                onChange={onChangeField}
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 };

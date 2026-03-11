@@ -1,11 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
 import type React from 'react';
-import { Database, Info, Plus, Power, Search, Trash2, Wrench } from 'lucide-react';
+import { Database, Plus, Power, Search, Trash2, Wrench } from 'lucide-react';
 import type { ConfigValidationIssue, SystemConfigItem } from '../../types/systemConfig';
 import { Select } from '../common';
 import { SettingsField } from './SettingsField';
-import { getFieldTitleZh } from '../../utils/systemConfigI18n';
-import { getFieldDescriptionZh } from '../../utils/systemConfigI18n';
+import { CompactConfigField } from './CompactConfigField';
 
 type DataSourceDef = {
   id: string;
@@ -193,98 +192,30 @@ export const DataSourceManager: React.FC<DataSourceManagerProps> = ({
     [itemsByKey],
   );
 
-  const renderPriorityField = (item: SystemConfigItem) => {
-    const schema = item.schema;
-    const inputType = schema?.uiControl === 'number' || schema?.dataType === 'integer' || schema?.dataType === 'number'
-      ? 'number'
-      : 'text';
-    const label = getFieldTitleZh(item.key, item.key);
-    const issues = issueByKey[item.key] || [];
+  const renderPriorityField = (item: SystemConfigItem) => (
+    <CompactConfigField
+      key={item.key}
+      item={item}
+      value={item.value}
+      disabled={disabled}
+      onChange={onChange}
+      issues={issueByKey[item.key] || []}
+      variant="embedded"
+    />
+  );
 
-    return (
-      <div key={item.key} className="grid gap-2 rounded-2xl border border-border bg-background/60 px-4 py-3 md:grid-cols-[220px_minmax(0,1fr)]">
-        <div>
-          <p className="text-sm font-semibold text-foreground">{label}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{item.key}</p>
-        </div>
-        <div className="space-y-2">
-          <input
-            type={inputType}
-            className="input-terminal w-full"
-            value={item.value}
-            disabled={disabled || !schema?.isEditable}
-            onChange={(event) => onChange(item.key, event.target.value)}
-          />
-          {issues.length ? (
-            <p className="text-xs text-destructive">{issues[0]?.message}</p>
-          ) : null}
-        </div>
-      </div>
-    );
-  };
+  const renderCompactField = (item: SystemConfigItem) => (
+    <CompactConfigField
+      key={item.key}
+      item={item}
+      value={item.value}
+      disabled={disabled}
+      onChange={onChange}
+      issues={issueByKey[item.key] || []}
+      variant="embedded"
+    />
+  );
 
-  const renderCompactField = (item: SystemConfigItem) => {
-    const schema = item.schema;
-    const label = getFieldTitleZh(item.key, item.key);
-    const helpText = getFieldDescriptionZh(item.key);
-    const issues = issueByKey[item.key] || [];
-    const controlType = schema?.uiControl ?? 'text';
-
-    return (
-      <div key={item.key} className="grid gap-2 rounded-2xl border border-border bg-background/60 px-4 py-3 md:grid-cols-[220px_minmax(0,1fr)]">
-        <div className="flex items-start gap-2">
-          <div>
-            <p className="text-sm font-semibold text-foreground">{label}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{item.key}</p>
-          </div>
-          {helpText ? (
-            <span className="relative mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-muted-foreground group">
-              <Info size={12} />
-              <span className="pointer-events-none absolute left-1/2 top-6 z-20 w-64 -translate-x-1/2 rounded-xl border border-border bg-popover px-3 py-2 text-xs text-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">
-                {helpText}
-              </span>
-            </span>
-          ) : null}
-        </div>
-        <div className="space-y-2">
-          {controlType === 'switch' ? (
-            <div className="flex justify-end">
-              <label className="inline-flex cursor-pointer items-center gap-3 rounded-2xl border border-input bg-background px-3 py-2 shadow-sm">
-                <input
-                  type="checkbox"
-                  className="peer sr-only"
-                  checked={item.value.trim().toLowerCase() === 'true'}
-                  disabled={disabled || !schema?.isEditable}
-                  onChange={(event) => onChange(item.key, event.target.checked ? 'true' : 'false')}
-                />
-                <div className="h-6 w-11 rounded-full bg-input transition-all after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full peer-disabled:opacity-50" />
-                <span className="text-sm text-muted-foreground">{item.value.trim().toLowerCase() === 'true' ? '已启用' : '未启用'}</span>
-              </label>
-            </div>
-          ) : controlType === 'select' && schema?.options?.length ? (
-            <Select
-              value={item.value}
-              onChange={(value) => onChange(item.key, value)}
-              options={schema.options.map((option) => ({ value: option, label: option }))}
-              disabled={disabled || !schema.isEditable}
-              className="w-full"
-            />
-          ) : (
-            <input
-              type={schema?.dataType === 'integer' || schema?.dataType === 'number' ? 'number' : 'text'}
-              className="input-terminal w-full"
-              value={item.value}
-              disabled={disabled || !schema?.isEditable}
-              onChange={(event) => onChange(item.key, event.target.value)}
-            />
-          )}
-          {issues.length ? (
-            <p className="text-xs text-destructive">{issues[0]?.message}</p>
-          ) : null}
-        </div>
-      </div>
-    );
-  };
 
   const addSource = useCallback(() => {
     if (!selectedAddId || visibleIds.includes(selectedAddId)) {
@@ -447,17 +378,20 @@ export const DataSourceManager: React.FC<DataSourceManagerProps> = ({
                 </div>
               </div>
 
-              <div className={['mt-4 space-y-3', canToggle && !isEnabled ? 'pointer-events-none opacity-60' : ''].join(' ')}>
-                {sourceItems.map((item) => (
-                  <SettingsField
-                    key={item.key}
-                    item={item}
-                    value={item.value}
-                    disabled={disabled || (canToggle && !isEnabled)}
-                    onChange={onChange}
-                    issues={issueByKey[item.key] || []}
-                  />
-                ))}
+              <div className={['mt-5 border-t border-border/80', canToggle && !isEnabled ? 'pointer-events-none opacity-60' : ''].join(' ')}>
+                <div className="divide-y divide-border/80">
+                  {sourceItems.map((item) => (
+                    <SettingsField
+                      key={item.key}
+                      item={item}
+                      value={item.value}
+                      disabled={disabled || (canToggle && !isEnabled)}
+                      onChange={onChange}
+                      issues={issueByKey[item.key] || []}
+                      variant="embedded"
+                    />
+                  ))}
+                </div>
               </div>
             </section>
           );
@@ -487,9 +421,9 @@ export const DataSourceManager: React.FC<DataSourceManagerProps> = ({
               </button>
             </div>
 
-            <div className="mt-5 space-y-2">
+            <div className="mt-5 rounded-3xl border border-border bg-background/70 p-4 shadow-sm">
               {priorityFields.length ? (
-                priorityFields.map((item) => renderPriorityField(item))
+                <div className="divide-y divide-border/80">{priorityFields.map((item) => renderPriorityField(item))}</div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-border bg-background/50 px-4 py-6 text-center text-sm text-muted-foreground">
                   暂无优先级配置项。
@@ -522,9 +456,9 @@ export const DataSourceManager: React.FC<DataSourceManagerProps> = ({
               </button>
             </div>
 
-            <div className="mt-5 space-y-2">
+            <div className="mt-5 rounded-3xl border border-border bg-background/70 p-4 shadow-sm">
               {configFields.length ? (
-                configFields.map((item) => renderCompactField(item))
+                <div className="divide-y divide-border/80">{configFields.map((item) => renderCompactField(item))}</div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-border bg-background/50 px-4 py-6 text-center text-sm text-muted-foreground">
                   暂无数据源配置项。

@@ -37,6 +37,7 @@ import {
   SettingsField,
   SettingsLoading,
   SmartModelAddDialog,
+  VisionModelDialogButton,
 } from '../components/settings';
 import {
   AI_BRAND_DEFINITIONS,
@@ -180,18 +181,21 @@ function matchesNotificationManagedKey(key: string): boolean {
 
 function renderFieldList(items: SystemConfigItem[], issueByKey: Record<string, unknown[]>, isSaving: boolean, onChange: (key: string, value: string) => void) {
   return (
-    <div className="space-y-3">
-      {items.map((item) => (
-        <SettingsField
-          key={item.key}
-          item={item}
-          value={item.value}
-          disabled={isSaving || STOCK_LIST_KEYS.has(item.key)}
-          managedHint={STOCK_LIST_KEYS.has(item.key) ? STOCK_LIST_HINT : undefined}
-          onChange={onChange}
-          issues={(issueByKey[item.key] || []) as never[]}
-        />
-      ))}
+    <div className="rounded-3xl border border-border bg-card/70 p-4 shadow-sm md:p-5">
+      <div className="divide-y divide-border/80">
+        {items.map((item) => (
+          <SettingsField
+            key={item.key}
+            item={item}
+            value={item.value}
+            disabled={isSaving || STOCK_LIST_KEYS.has(item.key)}
+            managedHint={STOCK_LIST_KEYS.has(item.key) ? STOCK_LIST_HINT : undefined}
+            onChange={onChange}
+            issues={(issueByKey[item.key] || []) as never[]}
+            variant="embedded"
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -341,21 +345,28 @@ const SettingsPage: React.FC = () => {
               title="模型路由"
               description="顶部只保留主模型、备选模型和视觉模型设置；新增品牌后，下面会按真实配置路径展示对应条目。"
               actions={(
-                <SmartModelAddDialog
-                  items={aiItems}
-                  configVersion={configVersion}
-                  maskToken={maskToken}
-                  disabled={isSaving || isLoading}
-                  onSaved={() => undefined}
-                  onAddBrand={handleAddAiBrand}
-                  availableBrandIds={availableAiBrandIds}
-                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <VisionModelDialogButton
+                    items={aiTopItems}
+                    onChangeField={setDraftValue}
+                    disabled={isSaving || isLoading}
+                  />
+                  <SmartModelAddDialog
+                    items={aiItems}
+                    configVersion={configVersion}
+                    maskToken={maskToken}
+                    disabled={isSaving || isLoading}
+                    onSaved={() => undefined}
+                    onAddBrand={handleAddAiBrand}
+                    availableBrandIds={availableAiBrandIds}
+                  />
+                </div>
               )}
               contentClassName="p-0"
             >
               <LLMChannelEditor
                 key={configVersion || 'llm-editor'}
-                items={aiItems}
+                items={aiTopItems}
                 onChangeField={setDraftValue}
                 disabled={isSaving || isLoading}
               />
@@ -401,28 +412,28 @@ const SettingsPage: React.FC = () => {
         );
       case 'notification':
         return (
-          <div className="space-y-5">
-            <SectionCard contentClassName="p-0">
-              <ReportSettingsManager
-                key={configVersion || 'report-settings-manager'}
-                items={reportSettingItems}
-                issueByKey={issueByKey}
-                onChange={setDraftValue}
-                disabled={isSaving || isLoading}
-              />
-            </SectionCard>
-
-            <SectionCard contentClassName="p-0">
-              <NotificationChannelManager
-                key={configVersion || 'notification-manager'}
-                items={notificationItems}
-                issueByKey={issueByKey}
-                onChange={setDraftValue}
-                onToggleEnabled={setDraftItemEnabled}
-                disabled={isSaving || isLoading}
-              />
-            </SectionCard>
-          </div>
+          <SectionCard contentClassName="p-0">
+            <NotificationChannelManager
+              key={configVersion || 'notification-manager'}
+              items={notificationItems}
+              issueByKey={issueByKey}
+              onChange={setDraftValue}
+              onToggleEnabled={setDraftItemEnabled}
+              disabled={isSaving || isLoading}
+              headerActions={(
+                <ReportSettingsManager
+                  key={configVersion || 'report-settings-manager'}
+                  items={reportSettingItems}
+                  issueByKey={issueByKey}
+                  onChange={setDraftValue}
+                  disabled={isSaving || isLoading}
+                  buttonOnly
+                  buttonLabel="报告设置"
+                  buttonClassName="shrink-0 whitespace-nowrap"
+                />
+              )}
+            />
+          </SectionCard>
         );
       case 'website':
         return (

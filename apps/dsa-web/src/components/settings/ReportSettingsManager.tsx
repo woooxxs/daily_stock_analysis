@@ -3,20 +3,23 @@ import type React from 'react';
 import {
   FileText,
   History,
-  Info,
   LayoutTemplate,
   Send,
   ShieldCheck,
 } from 'lucide-react';
 import type { ConfigValidationIssue, SystemConfigItem } from '../../types/systemConfig';
-import { Button, Select } from '../common';
-import { getFieldDescriptionZh, getFieldTitleZh } from '../../utils/systemConfigI18n';
+import { Button } from '../common';
+import { getFieldTitleZh } from '../../utils/systemConfigI18n';
+import { CompactConfigField } from './CompactConfigField';
 
 type ReportSettingsManagerProps = {
   items: SystemConfigItem[];
   issueByKey: Record<string, ConfigValidationIssue[]>;
   onChange: (key: string, value: string) => void;
   disabled?: boolean;
+  buttonOnly?: boolean;
+  buttonLabel?: string;
+  buttonClassName?: string;
 };
 
 type ReportSummaryGroup = {
@@ -94,79 +97,76 @@ function summarizeValue(item: SystemConfigItem): string {
   }
 }
 
-function renderCompactField(
-  item: SystemConfigItem,
-  issues: ConfigValidationIssue[],
-  disabled: boolean,
-  onChange: (key: string, value: string) => void,
-) {
-  const schema = item.schema;
-  const label = getFieldTitleZh(item.key, item.key);
-  const helpText = getFieldDescriptionZh(item.key);
-  const controlType = schema?.uiControl ?? 'text';
-
-  return (
-    <div key={item.key} className="grid gap-2 rounded-2xl border border-border bg-background/60 px-4 py-3 md:grid-cols-[220px_minmax(0,1fr)]">
-      <div className="flex items-start gap-2">
-        <div>
-          <p className="text-sm font-semibold text-foreground">{label}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{item.key}</p>
-        </div>
-        {helpText ? (
-          <span className="group relative mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-muted-foreground">
-            <Info size={12} />
-            <span className="pointer-events-none absolute left-1/2 top-6 z-20 w-64 -translate-x-1/2 rounded-xl border border-border bg-popover px-3 py-2 text-xs text-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">
-              {helpText}
-            </span>
-          </span>
-        ) : null}
-      </div>
-      <div className="space-y-2">
-        {controlType === 'switch' ? (
-          <div className="flex justify-end">
-            <label className="inline-flex cursor-pointer items-center gap-3 rounded-2xl border border-input bg-background px-3 py-2 shadow-sm">
-              <input
-                type="checkbox"
-                className="peer sr-only"
-                checked={item.value.trim().toLowerCase() === 'true'}
-                disabled={disabled || !schema?.isEditable}
-                onChange={(event) => onChange(item.key, event.target.checked ? 'true' : 'false')}
-              />
-              <div className="h-6 w-11 rounded-full bg-input transition-all after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full peer-disabled:opacity-50" />
-              <span className="text-sm text-muted-foreground">{item.value.trim().toLowerCase() === 'true' ? '已启用' : '未启用'}</span>
-            </label>
-          </div>
-        ) : controlType === 'select' && schema?.options?.length ? (
-          <Select
-            value={item.value}
-            onChange={(value) => onChange(item.key, value)}
-            options={schema.options.map((option) => ({ value: option, label: option }))}
-            disabled={disabled || !schema.isEditable}
-            className="w-full"
-          />
-        ) : (
-          <input
-            type={schema?.dataType === 'integer' || schema?.dataType === 'number' ? 'number' : 'text'}
-            className="input-terminal w-full"
-            value={item.value}
-            disabled={disabled || !schema?.isEditable}
-            onChange={(event) => onChange(item.key, event.target.value)}
-          />
-        )}
-        {issues.length ? <p className="text-xs text-destructive">{issues[0]?.message}</p> : null}
-      </div>
-    </div>
-  );
-}
-
 export const ReportSettingsManager: React.FC<ReportSettingsManagerProps> = ({
   items,
   issueByKey,
   onChange,
   disabled = false,
+  buttonOnly = false,
+  buttonLabel = '报告设置',
+  buttonClassName = '',
 }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const itemsByKey = useMemo(() => buildItemsByKey(items), [items]);
+
+
+  const triggerButton = (
+    <Button
+      type="button"
+      variant="secondary"
+      onClick={() => setIsDialogOpen(true)}
+      disabled={disabled}
+      className={buttonClassName}
+    >
+      <FileText className="h-4 w-4" />
+      {buttonLabel}
+    </Button>
+  );
+
+  if (buttonOnly) {
+    return (
+      <>
+        {triggerButton}
+        {isDialogOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={() => setIsDialogOpen(false)}>
+            <div className="w-full max-w-2xl rounded-3xl border border-border bg-card p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">报告设置</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">模仿数据源配置面板，展示缩略字段和悬浮说明，方便按需深入配置。</p>
+                </div>
+                <Button type="button" variant="secondary" onClick={() => setIsDialogOpen(false)}>
+                  关闭
+                </Button>
+              </div>
+
+              <div className="mt-5 rounded-3xl border border-border bg-background/70 p-4 shadow-sm">
+                {items.length ? (
+                  <div className="divide-y divide-border/80">
+                    {items.map((item) => (
+                      <CompactConfigField
+                        key={item.key}
+                        item={item}
+                        value={item.value}
+                        disabled={disabled}
+                        onChange={onChange}
+                        issues={issueByKey[item.key] || []}
+                        variant="embedded"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-border bg-background/50 px-4 py-6 text-center text-sm text-muted-foreground">
+                    暂无报告配置项。
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </>
+    );
+  }
 
   return (
     <div className="space-y-4 p-5">
@@ -175,9 +175,7 @@ export const ReportSettingsManager: React.FC<ReportSettingsManagerProps> = ({
           <h3 className="text-base font-semibold text-foreground">报告设置</h3>
           <p className="mt-1 text-sm text-muted-foreground">这里展示的是缩略信息；详细配置收进按钮里，避免和通知渠道凭证混在一起。</p>
         </div>
-        <Button type="button" variant="secondary" onClick={() => setIsDialogOpen(true)} disabled={disabled}>
-          报告设置
-        </Button>
+        {triggerButton}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
@@ -223,9 +221,21 @@ export const ReportSettingsManager: React.FC<ReportSettingsManagerProps> = ({
               </Button>
             </div>
 
-            <div className="mt-5 space-y-2">
+            <div className="mt-5 rounded-3xl border border-border bg-background/70 p-4 shadow-sm">
               {items.length ? (
-                items.map((item) => renderCompactField(item, issueByKey[item.key] || [], disabled, onChange))
+                <div className="divide-y divide-border/80">
+                  {items.map((item) => (
+                    <CompactConfigField
+                      key={item.key}
+                      item={item}
+                      value={item.value}
+                      disabled={disabled}
+                      onChange={onChange}
+                      issues={issueByKey[item.key] || []}
+                      variant="embedded"
+                    />
+                  ))}
+                </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-border bg-background/50 px-4 py-6 text-center text-sm text-muted-foreground">
                   暂无报告配置项。
