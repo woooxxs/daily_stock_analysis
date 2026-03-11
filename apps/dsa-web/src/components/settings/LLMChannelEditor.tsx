@@ -136,7 +136,6 @@ const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
               onKeyDown={(event) => event.stopPropagation()}
               placeholder="搜索模型"
               className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground shadow-sm transition-all placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-4 focus:ring-primary/10"
-              autoFocus
             />
           </div>
           <ul className="max-h-64 overflow-auto py-1 text-base sm:text-sm" role="listbox" tabIndex={-1} aria-multiselectable="true">
@@ -270,6 +269,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
             options={modelOptions}
             disabled={disabled}
             searchable
+            autoFocusSearch={false}
             className="w-full"
           />,
           '从当前已识别模型中选择唯一主模型。',
@@ -299,6 +299,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
             options={modelOptions}
             disabled={disabled}
             searchable
+            autoFocusSearch={false}
             className="w-full"
           />,
           '图片识别专用模型，可与主模型分开配置。',

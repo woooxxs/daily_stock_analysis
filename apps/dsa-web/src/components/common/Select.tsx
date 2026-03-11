@@ -19,6 +19,7 @@ interface SelectProps {
   searchable?: boolean;
   searchPlaceholder?: string;
   emptyText?: string;
+  autoFocusSearch?: boolean;
 }
 
 export const Select: React.FC<SelectProps> = ({
@@ -32,6 +33,7 @@ export const Select: React.FC<SelectProps> = ({
   searchable = false,
   searchPlaceholder = '请输入关键词搜索',
   emptyText = '无选项',
+  autoFocusSearch = true,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -119,7 +121,7 @@ export const Select: React.FC<SelectProps> = ({
                 onKeyDown={(event) => event.stopPropagation()}
                 placeholder={searchPlaceholder}
                 className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground shadow-sm transition-all placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-4 focus:ring-primary/10"
-                autoFocus
+                autoFocus={autoFocusSearch}
               />
             </div>
           ) : null}

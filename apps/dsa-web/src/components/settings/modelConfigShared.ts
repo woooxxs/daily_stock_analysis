@@ -49,129 +49,114 @@ export const AI_BRAND_DEFINITIONS: AiBrandDefinition[] = [
     title: 'AIHubMix',
     description: '一个聚合 Key 接多个兼容模型。',
     channelIdentifier: 'AIHUBMIX',
-    sections: [
-      { id: 'single', title: '聚合 Key', mode: 'single', keys: ['AIHUBMIX_KEY'] },
-      {
-        id: 'channel',
-        title: '渠道路径',
-        mode: 'channel',
-        keys: ['LLM_AIHUBMIX_BASE_URL', 'LLM_AIHUBMIX_API_KEY', 'LLM_AIHUBMIX_MODELS'],
-      },
-    ],
+    sections: [{
+      id: 'config',
+      title: '配置项',
+      mode: 'channel',
+      keys: ['AIHUBMIX_KEY', 'LLM_AIHUBMIX_BASE_URL', 'LLM_AIHUBMIX_API_KEY', 'LLM_AIHUBMIX_MODELS'],
+    }],
   },
   {
     id: 'deepseek',
     title: 'DeepSeek',
     description: 'DeepSeek 官方直连与 LiteLLM 渠道配置。',
     channelIdentifier: 'DEEPSEEK',
-    sections: [
-      { id: 'official', title: '官方直连', mode: 'single', keys: ['DEEPSEEK_API_KEY'] },
-      {
-        id: 'channel',
-        title: '渠道路径',
-        mode: 'channel',
-        keys: ['LLM_DEEPSEEK_BASE_URL', 'LLM_DEEPSEEK_API_KEY', 'LLM_DEEPSEEK_MODELS'],
-      },
-    ],
+    sections: [{
+      id: 'config',
+      title: '配置项',
+      mode: 'channel',
+      keys: ['DEEPSEEK_API_KEY', 'LLM_DEEPSEEK_BASE_URL', 'LLM_DEEPSEEK_API_KEY', 'LLM_DEEPSEEK_MODELS'],
+    }],
   },
   {
     id: 'gemini',
     title: 'Gemini',
     description: '官方 Gemini Key 与 LiteLLM 渠道放在同一个入口。',
     channelIdentifier: 'GEMINI',
-    sections: [
-      { id: 'official', title: '官方路径', mode: 'single', keys: ['GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEMPERATURE'] },
-      { id: 'channel', title: '渠道路径', mode: 'channel', keys: ['LLM_GEMINI_API_KEYS', 'LLM_GEMINI_MODELS'] },
-    ],
+    sections: [{
+      id: 'config',
+      title: '配置项',
+      mode: 'channel',
+      keys: ['GEMINI_API_KEY', 'GEMINI_API_KEYS', 'GEMINI_TEMPERATURE', 'LLM_GEMINI_API_KEYS', 'LLM_GEMINI_MODELS'],
+    }],
   },
   {
     id: 'anthropic',
     title: 'Claude / Anthropic',
     description: 'Claude 官方 Key 与 LiteLLM 渠道统一放在这里。',
     channelIdentifier: 'ANTHROPIC',
-    sections: [
-      { id: 'official', title: '官方路径', mode: 'single', keys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_TEMPERATURE'] },
-      {
-        id: 'channel',
-        title: '渠道路径',
-        mode: 'channel',
-        keys: ['LLM_ANTHROPIC_BASE_URL', 'LLM_ANTHROPIC_API_KEY', 'LLM_ANTHROPIC_MODELS'],
-      },
-    ],
+    sections: [{
+      id: 'config',
+      title: '配置项',
+      mode: 'channel',
+      keys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_TEMPERATURE', 'LLM_ANTHROPIC_BASE_URL', 'LLM_ANTHROPIC_API_KEY', 'LLM_ANTHROPIC_MODELS'],
+    }],
   },
   {
     id: 'openai_compatible',
     title: 'OpenAI 兼容',
     description: '统一承接 OPENAI_* 这组全局兼容配置。',
-    sections: [{ id: 'compatible', title: '兼容路径', mode: 'compatible', keys: ['OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_BASE_URL', 'OPENAI_MODEL', 'OPENAI_TEMPERATURE'] }],
+    sections: [{ id: 'config', title: '配置项', mode: 'compatible', keys: ['OPENAI_API_KEY', 'OPENAI_API_KEYS', 'OPENAI_BASE_URL', 'OPENAI_MODEL', 'OPENAI_TEMPERATURE'] }],
   },
   {
     id: 'openai',
     title: 'OpenAI',
     description: 'OpenAI 的 LiteLLM 渠道配置。',
     channelIdentifier: 'OPENAI',
-    sections: [
-      {
-        id: 'channel',
-        title: '渠道路径',
-        mode: 'channel',
-        keys: ['LLM_OPENAI_BASE_URL', 'LLM_OPENAI_API_KEY', 'LLM_OPENAI_MODELS'],
-      },
-    ],
+    sections: [{
+      id: 'config',
+      title: '配置项',
+      mode: 'channel',
+      keys: ['LLM_OPENAI_BASE_URL', 'LLM_OPENAI_API_KEY', 'LLM_OPENAI_MODELS'],
+    }],
   },
   {
     id: 'qwen',
     title: 'Qwen / 通义千问',
     description: '通义千问的 LiteLLM 渠道配置。',
     channelIdentifier: 'QWEN',
-    sections: [
-      {
-        id: 'channel',
-        title: '渠道路径',
-        mode: 'channel',
-        keys: ['LLM_QWEN_BASE_URL', 'LLM_QWEN_API_KEY', 'LLM_QWEN_MODELS'],
-      },
-    ],
+    sections: [{
+      id: 'config',
+      title: '配置项',
+      mode: 'channel',
+      keys: ['LLM_QWEN_BASE_URL', 'LLM_QWEN_API_KEY', 'LLM_QWEN_MODELS'],
+    }],
   },
   {
     id: 'glm',
     title: 'GLM / 智谱',
     description: '智谱 GLM 的 LiteLLM 渠道配置。',
     channelIdentifier: 'GLM',
-    sections: [
-      {
-        id: 'channel',
-        title: '渠道路径',
-        mode: 'channel',
-        keys: ['LLM_GLM_BASE_URL', 'LLM_GLM_API_KEY', 'LLM_GLM_MODELS'],
-      },
-    ],
+    sections: [{
+      id: 'config',
+      title: '配置项',
+      mode: 'channel',
+      keys: ['LLM_GLM_BASE_URL', 'LLM_GLM_API_KEY', 'LLM_GLM_MODELS'],
+    }],
   },
   {
     id: 'moonshot',
     title: 'Moonshot',
     description: 'Moonshot / Kimi 的 LiteLLM 渠道配置。',
     channelIdentifier: 'MOONSHOT',
-    sections: [
-      {
-        id: 'channel',
-        title: '渠道路径',
-        mode: 'channel',
-        keys: ['LLM_MOONSHOT_BASE_URL', 'LLM_MOONSHOT_API_KEY', 'LLM_MOONSHOT_MODELS'],
-      },
-    ],
+    sections: [{
+      id: 'config',
+      title: '配置项',
+      mode: 'channel',
+      keys: ['LLM_MOONSHOT_BASE_URL', 'LLM_MOONSHOT_API_KEY', 'LLM_MOONSHOT_MODELS'],
+    }],
   },
   {
     id: 'minimax',
     title: 'MiniMax',
     description: 'AI 扩展能力 Key，不参与主模型路由。',
-    sections: [{ id: 'extension', title: '扩展能力', mode: 'single', keys: ['MINIMAX_API_KEYS'] }],
+    sections: [{ id: 'config', title: '配置项', mode: 'single', keys: ['MINIMAX_API_KEYS'] }],
   },
   {
     id: 'litellm_yaml',
     title: 'LiteLLM YAML',
     description: '直接指向 LiteLLM 的 YAML 配置文件。',
-    sections: [{ id: 'yaml', title: 'YAML 路径', mode: 'yaml', keys: ['LITELLM_CONFIG'] }],
+    sections: [{ id: 'config', title: '配置项', mode: 'yaml', keys: ['LITELLM_CONFIG'] }],
   },
 ];
 
@@ -268,7 +253,7 @@ function itemHasEnabledValue(item: SystemConfigItem | undefined): boolean {
 }
 
 export function getChannelKeys(definition: AiBrandDefinition): string[] {
-  return definition.sections.filter((section) => section.mode === 'channel').flatMap((section) => section.keys);
+  return definition.sections.flatMap((section) => section.keys).filter((key) => key.startsWith('LLM_'));
 }
 
 export function getBrandState(

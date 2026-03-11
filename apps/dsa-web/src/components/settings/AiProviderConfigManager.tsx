@@ -68,7 +68,9 @@ const STATUS_META = {
 } as const;
 
 function getSectionKeyText(definition: AiBrandDefinition, section: AiBrandSection): string {
-  if (section.mode === 'channel' && definition.channelIdentifier) {
+  const hasChannelKeys = section.keys.some((key) => key.startsWith('LLM_'));
+  const hasNonChannelKeys = section.keys.some((key) => !key.startsWith('LLM_'));
+  if (hasChannelKeys && !hasNonChannelKeys && definition.channelIdentifier) {
     return `LLM_CHANNELS + ${section.keys.join(' / ')}`;
   }
   return section.keys.join(' / ');
@@ -167,11 +169,11 @@ export const AiProviderConfigManager: React.FC<AiProviderConfigManagerProps> = (
   );
 
   const handleFieldChange = useCallback(
-    (definition: AiBrandDefinition, section: AiBrandSection, item: SystemConfigItem, value: string) => {
+    (definition: AiBrandDefinition, item: SystemConfigItem, value: string) => {
       onChange(item.key, value);
       onToggleEnabled(item.key, true);
 
-      if (section.mode !== 'channel' || !definition.channelIdentifier) {
+      if (!definition.channelIdentifier || !item.key.startsWith('LLM_')) {
         return;
       }
 
@@ -305,7 +307,7 @@ export const AiProviderConfigManager: React.FC<AiProviderConfigManagerProps> = (
                             item={item}
                             value={item.value}
                             disabled={disabled || state.status !== 'enabled'}
-                            onChange={(_, value) => handleFieldChange(definition, section, item, value)}
+                            onChange={(_, value) => handleFieldChange(definition, item, value)}
                             issues={issueByKey[item.key] || []}
                             titleOverride={overrides.title}
                             descriptionOverride={overrides.description}
