@@ -9,3 +9,4 @@ export * from './SettingsField';
 export * from './SettingsLoading';
 export * from './NotificationChannelManager';
 export * from './SmartModelAddDialog';
+export * from './ReportSettingsManager';

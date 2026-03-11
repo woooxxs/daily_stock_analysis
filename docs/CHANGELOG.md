@@ -41,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - 🧭 **Settings and detail-screen refinement** — rebuilt the settings area into a left-nav management console, added sticky save actions, and aligned stock history/detail views with the same admin information hierarchy
 - 🔐 **Settings-managed password auth** — added a dedicated settings card to enable/disable admin password login, initialize passwords from the settings page, and confirm auth shutdown without requiring password re-entry
 - 🧭 **Single-entry AI model setup** — AI settings now center around one quick add flow for model channels and MiniMax extension keys, while legacy compatibility env keys move into a collapsed manual-maintenance section
-- 📝 **Dedicated report settings card** — notification settings now separate `REPORT_*` controls into a standalone report-settings area instead of mixing them into channel credential management
+- 📝 **Dedicated report settings panel** — notification settings now collapse `REPORT_*` behind a single report-settings entry with icon-based summaries on the main screen and a dedicated detail panel for editing
 
 ### Fixed
 - 🤖 **LLM settings key mismatch** — AI model editor now reads and writes `LITELLM_MODEL` and `LITELLM_FALLBACK_MODELS` instead of stale `LLM_MODEL` / `LLM_BACKUP_MODEL`

@@ -33,6 +33,7 @@ import {
   DataSourceManager,
   LLMChannelEditor,
   NotificationChannelManager,
+  ReportSettingsManager,
   SettingsField,
   SettingsLoading,
   SmartModelAddDialog,
@@ -355,11 +356,14 @@ const SettingsPage: React.FC = () => {
       case 'notification':
         return (
           <div className="space-y-5">
-            <SectionCard
-              title="报告设置"
-              description="控制报告格式、模板渲染、完整性校验与历史对比，不影响渠道认证信息。"
-            >
-              {reportSettingItems.length ? renderFieldList(reportSettingItems, issueByKey, isSaving, setDraftValue) : <EmptyState title="暂无报告设置" />}
+            <SectionCard contentClassName="p-0">
+              <ReportSettingsManager
+                key={configVersion || 'report-settings-manager'}
+                items={reportSettingItems}
+                issueByKey={issueByKey}
+                onChange={setDraftValue}
+                disabled={isSaving || isLoading}
+              />
             </SectionCard>
 
             <SectionCard contentClassName="p-0">
