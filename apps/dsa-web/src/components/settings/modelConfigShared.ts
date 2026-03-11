@@ -47,7 +47,7 @@ export const AI_BRAND_DEFINITIONS: AiBrandDefinition[] = [
   {
     id: 'aihubmix',
     title: 'AIHubMix',
-    description: '一个聚合 Key 接多个兼容模型。',
+    description: '',
     channelIdentifier: 'AIHUBMIX',
     sections: [{
       id: 'config',

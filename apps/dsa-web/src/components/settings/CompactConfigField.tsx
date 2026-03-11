@@ -31,6 +31,7 @@ type CompactConfigFieldProps = {
   issues?: ConfigValidationIssue[];
   titleOverride?: string;
   descriptionOverride?: string;
+  variant?: 'card' | 'embedded';
 };
 
 export const CompactConfigField: React.FC<CompactConfigFieldProps> = ({
@@ -41,6 +42,7 @@ export const CompactConfigField: React.FC<CompactConfigFieldProps> = ({
   issues = [],
   titleOverride,
   descriptionOverride,
+  variant = 'card',
 }) => {
   const schema = item.schema;
   const label = titleOverride || getFieldTitleZh(item.key, item.key);
@@ -188,14 +190,21 @@ export const CompactConfigField: React.FC<CompactConfigFieldProps> = ({
     );
   };
 
+  const containerClassName = variant === 'embedded'
+    ? 'grid gap-4 px-1 py-5 md:grid-cols-[220px_minmax(0,1fr)] md:gap-6'
+    : 'grid gap-2 rounded-2xl border border-border bg-background/60 px-4 py-3 md:grid-cols-[220px_minmax(0,1fr)]';
+
   return (
-    <div className="grid gap-2 rounded-2xl border border-border bg-background/60 px-4 py-3 md:grid-cols-[220px_minmax(0,1fr)]">
+    <div className={containerClassName}>
       <div className="flex items-start gap-2">
         <div>
           <p className="text-sm font-semibold text-foreground">{label}</p>
           <p className="mt-1 text-xs text-muted-foreground">{item.key}</p>
+          {variant === 'embedded' && helpText ? (
+            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">{helpText}</p>
+          ) : null}
         </div>
-        {helpText ? (
+        {variant !== 'embedded' && helpText ? (
           <span className="group relative mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-muted-foreground">
             <Info size={12} />
             <span className="pointer-events-none absolute left-1/2 top-6 z-20 w-64 -translate-x-1/2 rounded-xl border border-border bg-popover px-3 py-2 text-xs text-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">

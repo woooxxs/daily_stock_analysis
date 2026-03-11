@@ -145,6 +145,7 @@ const REPORT_SETTING_KEYS = new Set([
   'REPORT_HISTORY_COMPARE_N',
   'MERGE_EMAIL_NOTIFICATION',
 ]);
+const VISION_FIELD_KEYS = new Set(['VISION_MODEL', 'VISION_PROVIDER_PRIORITY', 'OPENAI_VISION_MODEL']);
 const HIDDEN_GENERIC_KEYS = new Set([
   'ADMIN_AUTH_ENABLED',
   'LLM_MODEL',
@@ -265,10 +266,20 @@ const SettingsPage: React.FC = () => {
     () => AI_BRAND_DEFINITIONS.filter((definition) => !visibleAiBrandIds.includes(definition.id)).map((definition) => definition.id),
     [visibleAiBrandIds],
   );
-  const aiTopItems = useMemo(
-    () => aiItems.filter((item) => AI_TOP_KEYS.includes(item.key as (typeof AI_TOP_KEYS)[number])),
-    [aiItems],
+  const visionEditorItems = useMemo(
+    () => items.filter((item) => VISION_FIELD_KEYS.has(item.key)),
+    [items],
   );
+  const aiTopItems = useMemo(() => {
+    const seen = new Set<string>();
+    return [...aiItems, ...visionEditorItems].filter((item) => {
+      if (!AI_TOP_KEYS.includes(item.key as (typeof AI_TOP_KEYS)[number]) || seen.has(item.key)) {
+        return false;
+      }
+      seen.add(item.key);
+      return true;
+    });
+  }, [aiItems, visionEditorItems]);
   const dataSourceItems = useMemo(() => items.filter((item) => DATA_SOURCE_MANAGER_KEYS.has(item.key)), [items]);
   const dataSourcePriorityItems = useMemo(() => items.filter((item) => DATA_SOURCE_PRIORITY_KEYS.has(item.key)), [items]);
   const dataSourceConfigItems = useMemo(() => items.filter((item) => DATA_SOURCE_CONFIG_KEYS.has(item.key)), [items]);
@@ -292,13 +303,13 @@ const SettingsPage: React.FC = () => {
 
   const handledKeys = useMemo(() => {
     const next = new Set<string>();
-    [...rawAiItems, ...dataSourceItems, ...dataSourceConfigItems, ...proxyItems, ...notificationItems, ...reportSettingItems, ...websiteItems, ...backtestItems, ...agentItems, ...securityFieldItems, ...scheduleItems].forEach((item) => {
+    [...rawAiItems, ...visionEditorItems, ...dataSourceItems, ...dataSourceConfigItems, ...proxyItems, ...notificationItems, ...reportSettingItems, ...websiteItems, ...backtestItems, ...agentItems, ...securityFieldItems, ...scheduleItems].forEach((item) => {
       next.add(item.key);
     });
     dataSourcePriorityItems.forEach((item) => next.add(item.key));
     HIDDEN_GENERIC_KEYS.forEach((key) => next.add(key));
     return next;
-  }, [rawAiItems, dataSourceItems, dataSourcePriorityItems, dataSourceConfigItems, notificationItems, reportSettingItems, proxyItems, scheduleItems, securityFieldItems, websiteItems, backtestItems, agentItems]);
+  }, [rawAiItems, visionEditorItems, dataSourceItems, dataSourcePriorityItems, dataSourceConfigItems, notificationItems, reportSettingItems, proxyItems, scheduleItems, securityFieldItems, websiteItems, backtestItems, agentItems]);
 
   const otherItems = useMemo(
     () => items.filter((item) => !handledKeys.has(item.key) && !matchesAiManagedKey(item.key) && !matchesNotificationManagedKey(item.key)),

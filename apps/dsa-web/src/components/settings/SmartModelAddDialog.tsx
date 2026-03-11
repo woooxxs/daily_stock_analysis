@@ -84,7 +84,7 @@ export const SmartModelAddDialog: React.FC<SmartModelAddDialogProps> = ({
                 />
               </div>
 
-              {selectedBrandId ? (
+              {selectedBrandId && AI_BRAND_DEFINITIONS.find((definition) => definition.id === selectedBrandId)?.description ? (
                 <div className="rounded-2xl border border-border bg-background/60 px-4 py-3 text-sm text-muted-foreground">
                   {AI_BRAND_DEFINITIONS.find((definition) => definition.id === selectedBrandId)?.description}
                 </div>

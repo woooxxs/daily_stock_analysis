@@ -25,7 +25,6 @@ import {
   upsertChannelIdentifier,
   type AiBrandDefinition,
   type AiBrandId,
-  type AiBrandSection,
 } from './modelConfigShared';
 
 type AiProviderConfigManagerProps = {
@@ -66,15 +65,6 @@ const STATUS_META = {
     badgeClassName: 'bg-muted text-muted-foreground',
   },
 } as const;
-
-function getSectionKeyText(definition: AiBrandDefinition, section: AiBrandSection): string {
-  const hasChannelKeys = section.keys.some((key) => key.startsWith('LLM_'));
-  const hasNonChannelKeys = section.keys.some((key) => !key.startsWith('LLM_'));
-  if (hasChannelKeys && !hasNonChannelKeys && definition.channelIdentifier) {
-    return `LLM_CHANNELS + ${section.keys.join(' / ')}`;
-  }
-  return section.keys.join(' / ');
-}
 
 function getFieldOverrides(item: SystemConfigItem): { title?: string; description?: string } {
   if (item.key.endsWith('_BASE_URL')) {
@@ -258,7 +248,7 @@ export const AiProviderConfigManager: React.FC<AiProviderConfigManagerProps> = (
                       {statusMeta.label}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-muted-foreground">{definition.description}</p>
+                  {definition.description ? <p className="mt-1 text-sm text-muted-foreground">{definition.description}</p> : null}
                 </div>
               </div>
 
@@ -284,40 +274,29 @@ export const AiProviderConfigManager: React.FC<AiProviderConfigManagerProps> = (
               </div>
             </div>
 
-            <div className={['mt-4 space-y-4', state.status === 'enabled' ? '' : 'opacity-60'].join(' ')}>
-              {definition.sections.map((section) => {
-                const sectionItems = section.keys.map((key) => itemsByKey[key]).filter((item): item is SystemConfigItem => Boolean(item));
-                if (!sectionItems.length) {
-                  return null;
-                }
-
-                return (
-                  <div key={section.id} className="space-y-3 rounded-2xl border border-border bg-background/50 p-3">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">{section.title}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{getSectionKeyText(definition, section)}</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      {sectionItems.map((item) => {
-                        const overrides = getFieldOverrides(item);
-                        return (
-                          <CompactConfigField
-                            key={item.key}
-                            item={item}
-                            value={item.value}
-                            disabled={disabled || state.status !== 'enabled'}
-                            onChange={(_, value) => handleFieldChange(definition, item, value)}
-                            issues={issueByKey[item.key] || []}
-                            titleOverride={overrides.title}
-                            descriptionOverride={overrides.description}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
+            <div className={['mt-5 border-t border-border/80', state.status === 'enabled' ? '' : 'opacity-60'].join(' ')}>
+              <div className="divide-y divide-border/80">
+                {definition.sections
+                  .flatMap((section) => section.keys)
+                  .map((key) => itemsByKey[key])
+                  .filter((item): item is SystemConfigItem => Boolean(item))
+                  .map((item) => {
+                    const overrides = getFieldOverrides(item);
+                    return (
+                      <CompactConfigField
+                        key={item.key}
+                        item={item}
+                        value={item.value}
+                        disabled={disabled || state.status !== 'enabled'}
+                        onChange={(_, value) => handleFieldChange(definition, item, value)}
+                        issues={issueByKey[item.key] || []}
+                        titleOverride={overrides.title}
+                        descriptionOverride={overrides.description}
+                        variant="embedded"
+                      />
+                    );
+                  })}
+              </div>
             </div>
           </section>
         );
